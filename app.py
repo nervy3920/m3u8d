@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, send_from_directory, send_file, make_
 from flask_cors import CORS
 from dotenv import load_dotenv
 import os
+import traceback
 from pathlib import Path
 from functools import wraps
 import hashlib
@@ -255,6 +256,26 @@ def get_config():
         'download_dir': DOWNLOAD_DIR,
         'temp_dir': TEMP_DIR
     })
+
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """全局异常处理，确保返回 JSON"""
+    # 如果是 HTTP 错误，保留状态码
+    if hasattr(e, 'code'):
+        code = e.code
+    else:
+        code = 500
+    
+    # 记录错误堆栈
+    app.logger.error(f"发生未捕获异常: {str(e)}")
+    app.logger.error(traceback.format_exc())
+
+    return jsonify({
+        'error': str(e),
+        'success': False,
+        'message': '服务器内部错误'
+    }), code
 
 
 if __name__ == '__main__':

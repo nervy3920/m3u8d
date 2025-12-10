@@ -13,13 +13,18 @@ class Database:
         self.init_db()
 
     def get_connection(self):
-        conn = sqlite3.connect(self.db_path)
+        # 增加超时时间到 30 秒，防止 database is locked 错误
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
         conn.row_factory = sqlite3.Row
         return conn
 
     def init_db(self):
         """初始化数据库表"""
         conn = self.get_connection()
+        
+        # 启用 WAL 模式以支持更高的并发
+        conn.execute('PRAGMA journal_mode=WAL')
+        
         cursor = conn.cursor()
 
         # 创建任务表
