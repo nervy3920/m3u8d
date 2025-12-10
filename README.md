@@ -48,7 +48,7 @@ MAX_CONCURRENT_DOWNLOADS=3
 
 # 工具路径配置
 N_M3U8DL_PATH=./bin/N_m3u8DL-RE
-FFMPEG_PATH=ffmpeg
+FFMPEG_PATH=./bin/ffmpeg
 
 # 目录配置
 DOWNLOAD_DIR=./downloads
