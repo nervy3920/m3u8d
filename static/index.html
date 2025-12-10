@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>M3U8 视频下载管理器</title>
+
+    <!-- Bootstrap 5.3 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Animate.css -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" rel="stylesheet">
+
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --success-gradient: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            --warning-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --dark-bg: #1a1d29;
+            --card-bg: #ffffff;
+            --sidebar-bg: #2d3142;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* 登录页面样式 */
+        .login-wrapper {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 50px 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 450px;
+            width: 100%;
+        }
+
+        .login-logo {
+            width: 80px;
+            height: 80px;
+            background: var(--primary-gradient);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 30px;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+
+        .login-logo i {
+            font-size: 40px;
+            color: white;
+        }
+
+        .login-title {
+            font-size: 28px;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 10px;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .login-subtitle {
+            text-align: center;
+            color: #6c757d;
+            margin-bottom: 40px;
+        }
+
+        .form-control {
+            border-radius: 12px;
+            padding: 14px 20px;
+            border: 2px solid #e9ecef;
+            transition: all 0.3s;
+        }
+
+        .form-control:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.15);
+        }
+
+        .btn-login {
+            background: var(--primary-gradient);
+            border: none;
+            border-radius: 12px;
+            padding: 14px;
+            font-weight: 600;
+            color: white;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        /* 主应用样式 */
+        .app-wrapper {
+            display: flex;
+            min-height: 100vh;
+            background: #f5f7fa;
+        }
+
+        /* 侧边栏 */
+        .sidebar {
+            width: 280px;
+            background: var(--sidebar-bg);
+            color: white;
+            padding: 30px 0;
+            box-shadow: 4px 0 10px rgba(0, 0, 0, 0.1);
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+
+        .sidebar-brand {
+            padding: 0 30px 30px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .sidebar-brand h3 {
+            font-size: 22px;
+            font-weight: 700;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .sidebar-brand .brand-icon {
+            width: 45px;
+            height: 45px;
+            background: var(--primary-gradient);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sidebar-menu {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .sidebar-menu li {
+            margin-bottom: 5px;
+        }
+
+        .sidebar-menu a {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px 30px;
+            color: rgba(255, 255, 255, 0.7);
+            text-decoration: none;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+
+        .sidebar-menu a:hover,
+        .sidebar-menu a.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .sidebar-menu a i {
+            font-size: 20px;
+            width: 24px;
+        }
+
+        .sidebar-stats {
+            padding: 20px 30px;
+            margin: 20px 30px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+        }
+
+        .sidebar-stats h6 {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            opacity: 0.7;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .stat-value {
+            font-weight: 700;
+        }
+
+        /* 主内容区 */
+        .main-content {
+            flex: 1;
+            margin-left: 280px;
+            padding: 30px;
+        }
+
+        .top-bar {
+            background: white;
+            border-radius: 15px;
+            padding: 20px 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .page-title {
+            font-size: 28px;
+            font-weight: 700;
+            margin: 0;
+            color: #2d3142;
+        }
+
+        .btn-logout {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .btn-logout:hover {
+            background: #c82333;
+            transform: translateY(-2px);
+        }
+
+        /* 统计卡片 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: var(--primary-gradient);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-card.success::before {
+            background: var(--success-gradient);
+        }
+
+        .stat-card.warning::before {
+            background: var(--warning-gradient);
+        }
+
+        .stat-card-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 15px;
+            font-size: 28px;
+        }
+
+        .stat-card.primary .stat-card-icon {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+        }
+
+        .stat-card.success .stat-card-icon {
+            background: rgba(17, 153, 142, 0.1);
+            color: #11998e;
+        }
+
+        .stat-card.warning .stat-card-icon {
+            background: rgba(245, 87, 108, 0.1);
+            color: #f5576c;
+        }
+
+        .stat-card h3 {
+            font-size: 36px;
+            font-weight: 700;
+            margin: 0 0 5px 0;
+        }
+
+        .stat-card p {
+            margin: 0;
+            color: #6c757d;
+            font-size: 14px;
+        }
+
+        /* 内容卡片 */
+        .content-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            margin-bottom: 30px;
+        }
+
+        .content-card-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f5f7fa;
+        }
+
+        .content-card-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* 表单样式 */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #2d3142;
+        }
+
+        .btn-primary-custom {
+            background: var(--primary-gradient);
+            border: none;
+            padding: 12px 30px;
+            border-radius: 10px;
+            font-weight: 600;
+            color: white;
+            transition: all 0.3s;
+        }
+
+        .btn-primary-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        /* 任务列表 */
+        .task-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .task-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            border-left: 4px solid #667eea;
+            transition: all 0.3s;
+        }
+
+        .task-card:hover {
+            transform: translateX(5px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .task-card.completed {
+            border-left-color: #11998e;
+        }
+
+        .task-card.failed {
+            border-left-color: #f5576c;
+        }
+
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 15px;
+        }
+
+        .task-info h5 {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 0 0 5px 0;
+        }
+
+        .task-url {
+            font-size: 13px;
+            color: #6c757d;
+            word-break: break-all;
+        }
+
+        .task-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .task-badge.downloading {
+            background: rgba(245, 87, 108, 0.1);
+            color: #f5576c;
+        }
+
+        .task-badge.completed {
+            background: rgba(17, 153, 142, 0.1);
+            color: #11998e;
+        }
+
+        .task-badge.failed {
+            background: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+        }
+
+        .task-progress {
+            margin-bottom: 15px;
+        }
+
+        .progress {
+            height: 8px;
+            border-radius: 10px;
+            background: #f5f7fa;
+        }
+
+        .progress-bar {
+            border-radius: 10px;
+            background: var(--primary-gradient);
+            transition: width 0.3s;
+        }
+
+        .task-meta {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
+            font-size: 13px;
+            color: #6c757d;
+        }
+
+        .task-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .task-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn-sm-custom {
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            border: none;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-play {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+        }
+
+        .btn-play:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-info-custom {
+            background: rgba(13, 202, 240, 0.1);
+            color: #0dcaf0;
+        }
+
+        .btn-info-custom:hover {
+            background: #0dcaf0;
+            color: white;
+        }
+
+        .btn-danger-custom {
+            background: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+        }
+
+        .btn-danger-custom:hover {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-download {
+            background: rgba(25, 135, 84, 0.1);
+            color: #198754;
+        }
+
+        .btn-download:hover {
+            background: #198754;
+            color: white;
+        }
+
+        /* 空状态 */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .empty-state i {
+            font-size: 80px;
+            color: #e9ecef;
+            margin-bottom: 20px;
+        }
+
+        .empty-state h4 {
+            color: #6c757d;
+            margin-bottom: 10px;
+        }
+
+        .empty-state p {
+            color: #adb5bd;
+        }
+
+        /* 模态框样式 */
+        .modal-content {
+            border-radius: 15px;
+            border: none;
+        }
+
+        .modal-header {
+            border-bottom: 2px solid #f5f7fa;
+            padding: 25px 30px;
+        }
+
+        .modal-title {
+            font-weight: 700;
+        }
+
+        .modal-body {
+            padding: 30px;
+        }
+
+        /* 日志容器 */
+        .log-container {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .log-line {
+            margin-bottom: 5px;
+            word-wrap: break-word;
+        }
+
+        /* 视频播放器 */
+        .video-player-wrapper {
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        video {
+            width: 100%;
+            max-height: 70vh;
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s;
+            }
+
+            .sidebar.show {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* 加载动画 */
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 滚动条美化 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+    <!-- Toast 容器 -->
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1100" id="toastContainer"></div>
+
+    <!-- 登录页面 -->
+    <div id="loginPage" class="login-wrapper">
+        <div class="login-card animate__animated animate__fadeIn">
+            <div class="login-logo">
+                <i class="bi bi-cloud-download"></i>
+            </div>
+            <h2 class="login-title">M3U8 下载管理器</h2>
+            <p class="login-subtitle">请输入管理密码登录</p>
+            <form id="loginForm">
+                <div class="mb-4">
+                    <input type="password" class="form-control" id="password" placeholder="请输入密码" required autofocus>
+                </div>
+                <button type="submit" class="btn btn-login w-100">
+                    <span id="loginBtnText">登录</span>
+                    <span id="loginSpinner" class="spinner d-none"></span>
+                </button>
+            </form>
+            <div id="loginError" class="alert alert-danger mt-3 d-none"></div>
+        </div>
+    </div>
+
+    <!-- 主应用 -->
+    <div id="mainApp" class="d-none">
+        <div class="app-wrapper">
+            <!-- 侧边栏 -->
+            <aside class="sidebar">
+                <div class="sidebar-brand">
+                    <h3>
+                        <span class="brand-icon">
+                            <i class="bi bi-cloud-download"></i>
+                        </span>
+                        M3U8 管理器
+                    </h3>
+                </div>
+                <ul class="sidebar-menu">
+                    <li>
+                        <a href="#" class="active" data-page="new">
+                            <i class="bi bi-plus-circle-fill"></i>
+                            <span>新建任务</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" data-page="downloading">
+                            <i class="bi bi-arrow-down-circle-fill"></i>
+                            <span>下载中</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" data-page="completed">
+                            <i class="bi bi-check-circle-fill"></i>
+                            <span>已完成</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" data-page="all">
+                            <i class="bi bi-list-ul"></i>
+                            <span>所有任务</span>
+                        </a>
+                    </li>
+                </ul>
+                <div class="sidebar-stats">
+                    <h6>统计信息</h6>
+                    <div class="stat-item">
+                        <span>总任务</span>
+                        <span class="stat-value" id="sidebarTotal">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>下载中</span>
+                        <span class="stat-value" id="sidebarDownloading">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>已完成</span>
+                        <span class="stat-value" id="sidebarCompleted">0</span>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- 主内容 -->
+            <main class="main-content">
+                <!-- 顶部栏 -->
+                <div class="top-bar">
+                    <h1 class="page-title" id="pageTitle">新建任务</h1>
+                    <button class="btn-logout" onclick="logout()">
+                        <i class="bi bi-box-arrow-right"></i> 退出登录
+                    </button>
+                </div>
+
+                <!-- 统计卡片 -->
+                <div class="stats-grid">
+                    <div class="stat-card primary">
+                        <div class="stat-card-icon">
+                            <i class="bi bi-collection"></i>
+                        </div>
+                        <h3 id="statTotal">0</h3>
+                        <p>总任务数</p>
+                    </div>
+                    <div class="stat-card warning">
+                        <div class="stat-card-icon">
+                            <i class="bi bi-arrow-down-circle"></i>
+                        </div>
+                        <h3 id="statDownloading">0</h3>
+                        <p>下载中</p>
+                    </div>
+                    <div class="stat-card success">
+                        <div class="stat-card-icon">
+                            <i class="bi bi-check-circle"></i>
+                        </div>
+                        <h3 id="statCompleted">0</h3>
+                        <p>已完成</p>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-icon">
+                            <i class="bi bi-x-circle"></i>
+                        </div>
+                        <h3 id="statFailed">0</h3>
+                        <p>失败</p>
+                    </div>
+                </div>
+
+                <!-- 新建任务页面 -->
+                <div id="pageNew" class="page-content">
+                    <div class="content-card animate__animated animate__fadeIn">
+                        <div class="content-card-header">
+                            <h3 class="content-card-title">
+                                <i class="bi bi-plus-circle"></i>
+                                创建下载任务
+                            </h3>
+                        </div>
+                        <form id="newTaskForm">
+                            <div class="form-group">
+                                <label class="form-label">M3U8 链接</label>
+                                <input type="url" class="form-control" id="taskUrl" placeholder="https://example.com/video.m3u8" required>
+                                <small class="text-muted">请输入有效的 M3U8 视频链接</small>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">文件名（可选）</label>
+                                <input type="text" class="form-control" id="taskName" placeholder="留空则自动生成文件名">
+                            </div>
+                            <button type="submit" class="btn-primary-custom">
+                                <i class="bi bi-download"></i> 开始下载
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- 下载中页面 -->
+                <div id="pageDownloading" class="page-content d-none">
+                    <div class="content-card">
+                        <div class="content-card-header">
+                            <h3 class="content-card-title">
+                                <i class="bi bi-arrow-down-circle"></i>
+                                下载中的任务
+                            </h3>
+                        </div>
+                        <div id="downloadingTasks" class="task-list"></div>
+                    </div>
+                </div>
+
+                <!-- 已完成页面 -->
+                <div id="pageCompleted" class="page-content d-none">
+                    <div class="content-card">
+                        <div class="content-card-header">
+                            <h3 class="content-card-title">
+                                <i class="bi bi-check-circle"></i>
+                                已完成的任务
+                            </h3>
+                        </div>
+                        <div id="completedTasks" class="task-list"></div>
+                    </div>
+                </div>
+
+                <!-- 所有任务页面 -->
+                <div id="pageAll" class="page-content d-none">
+                    <div class="content-card">
+                        <div class="content-card-header">
+                            <h3 class="content-card-title">
+                                <i class="bi bi-list-ul"></i>
+                                所有任务
+                            </h3>
+                        </div>
+                        <div id="allTasks" class="task-list"></div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- 任务详情模态框 -->
+    <div class="modal fade" id="taskDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-info-circle"></i> 任务详情
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="taskDetailContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 视频播放模态框 -->
+    <div class="modal fade" id="videoPlayerModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-play-circle"></i> 视频播放
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div class="video-player-wrapper">
+                        <video id="videoPlayer" controls></video>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script src="app.js"></script>
+</body>
+</html>
