@@ -1,11 +1,12 @@
 # M3U8 视频下载管理器
 
-一个基于 Python Flask 和 N_m3u8DL-RE 的现代化 M3U8 视频下载管理系统。提供简洁友好的 Web 界面，支持任务队列、并发控制、实时进度监控、在线播放以及 Aria2 自动推送。
+一个基于 Python Flask 和 N_m3u8DL-RE 的现代化 M3U8 视频下载管理系统。提供简洁友好的 Web 界面，支持任务队列、并发控制、实时进度监控、在线播放、Aria2 自动推送以及 **Jable 视频解析**。
 
 ## ✨ 功能特性
 
 *   **Web 管理界面**：基于 Bootstrap 5 的响应式设计，操作直观。
 *   **任务管理**：支持创建、停止、删除下载任务。
+*   **视频解析**：**新增** Jable 视频解析功能，自动提取 M3U8 链接和标题，支持 Cloudflare 绕过。
 *   **并发控制**：支持设置最大并发下载数，多余任务自动进入等待队列。
 *   **实时监控**：实时显示下载进度、速度和详细日志。
 *   **在线播放**：下载完成后可直接在浏览器中预览播放视频。
@@ -59,8 +60,9 @@ python app.py
 
 ### 任务管理
 1.  **新建任务**：输入 M3U8 链接，可选自定义文件名。
-2.  **任务队列**：任务会自动排队，根据“最大并发数”设置依次执行。
-3.  **管理操作**：支持停止、删除（可选同时删除文件）、查看详情。
+2.  **视频解析**：在“视频解析”页面输入 Jable 视频链接，系统将自动解析并创建任务。
+3.  **任务队列**：任务会自动排队，根据“最大并发数”设置依次执行。
+4.  **管理操作**：支持停止、删除（可选同时删除文件和临时文件）、查看详情。
 
 ### 系统设置
 在侧边栏点击“系统设置”可配置：
@@ -88,21 +90,18 @@ python app.py
         "name": "自定义文件名 (可选)"
     }
     ```
-*   **Response**:
+
+### 2. 解析 Jable 视频
+
+*   **URL**: `/api/parse/jable`
+*   **Method**: `POST`
+*   **Headers**: `X-API-Key: 您的API_Key`
+*   **Body**:
     ```json
     {
-        "success": true,
-        "task_id": 1,
-        "message": "任务已加入队列"
+        "url": "https://jable.tv/videos/..."
     }
     ```
-
-### 2. 获取任务列表
-
-*   **URL**: `/api/tasks`
-*   **Method**: `GET`
-*   **Headers**: `X-API-Key: 您的API_Key`
-*   **Params**: `status` (可选，如 `downloading`, `completed`)
 
 ## 📂 项目结构
 
@@ -111,9 +110,14 @@ python app.py
 ├── app.py              # Flask 后端入口
 ├── database.py         # 数据库操作封装 (SQLite)
 ├── downloader.py       # 下载管理器 (含队列、并发、Aria2推送)
+├── templates/          # HTML 模板
+│   ├── base.html       # 基础布局
+│   ├── new_task.html   # 新建任务页
+│   ├── parser.html     # 解析页
+│   └── ...
 ├── static/             # 前端静态资源
-│   ├── index.html      # 单页应用主页
-│   └── app.js          # 前端核心逻辑
+│   ├── css/            # 样式文件
+│   └── js/             # 逻辑脚本 (api.js, tasks.js 等)
 ├── data/               # 数据存储目录 (数据库、密钥)
 ├── downloads/          # 视频下载目录
 ├── temp/               # 临时文件目录

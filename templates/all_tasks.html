@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block page_title %}所有任务{% endblock %}
+
+{% block content %}
+<div id="pageAll" class="page-content">
+    <div class="content-card">
+        <div class="content-card-header">
+            <h3 class="content-card-title">
+                <i class="bi bi-list-ul"></i>
+                所有任务
+            </h3>
+        </div>
+        <div id="allTasks" class="task-list"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/tasks.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        window.currentPageType = 'all';
+        ui.startRefreshTimer();
+    });
+</script>
+{% endblock %}

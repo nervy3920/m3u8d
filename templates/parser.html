@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block page_title %}视频解析{% endblock %}
+
+{% block content %}
+<div id="pageParser" class="page-content">
+    <div class="content-card animate__animated animate__fadeIn">
+        <div class="content-card-header">
+            <h3 class="content-card-title">
+                <i class="bi bi-magic"></i>
+                通用视频解析
+            </h3>
+        </div>
+        <form id="parserForm">
+            <div class="form-group">
+                <label class="form-label">视频页面链接</label>
+                <input type="url" class="form-control" id="videoPageUrl" placeholder="https://example.com/video/..." required>
+                <small class="text-muted">支持解析网页中的 M3U8 链接，自动提取标题</small>
+            </div>
+            <button type="submit" class="btn-primary-custom">
+                <i class="bi bi-search"></i> 开始解析
+            </button>
+        </form>
+        
+        <div id="parseResult" class="mt-4 d-none">
+            <div class="alert alert-success">
+                <h5 class="alert-heading"><i class="bi bi-check-circle"></i> 解析成功</h5>
+                <hr>
+                <p class="mb-3"><strong>标题:</strong> <span id="parsedTitle"></span></p>
+                
+                <!-- 预览播放器容器 -->
+                <div id="previewPlayer" class="mb-3 d-none" style="width: 100%; height: 400px; background: #000;"></div>
+
+                <div id="singleResult" class="d-none">
+                    <p class="mb-2"><strong>M3U8:</strong> <span id="parsedUrl" class="text-break font-monospace small"></span></p>
+                    <div class="mt-3 d-flex gap-2">
+                        <button class="btn btn-primary" onclick="startDownload()">
+                            <i class="bi bi-download"></i> 下载视频
+                        </button>
+                        <button class="btn btn-success" onclick="previewVideo()">
+                            <i class="bi bi-play-fill"></i> 预览播放
+                        </button>
+                    </div>
+                </div>
+
+                <div id="multiResult" class="d-none">
+                    <p class="mb-2"><strong>检测到多个 M3U8 链接，请选择：</strong></p>
+                    <div class="list-group" id="urlList">
+                        <!-- 动态插入 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/DPlayer.js"></script>
+<script src="/static/js/parser.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        ui.startRefreshTimer();
+    });
+</script>
+{% endblock %}

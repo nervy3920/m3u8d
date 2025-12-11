@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block page_title %}系统设置{% endblock %}
+
+{% block content %}
+<div id="pageSettings" class="page-content">
+    <div class="content-card">
+        <div class="content-card-header">
+            <h3 class="content-card-title">
+                <i class="bi bi-gear"></i>
+                系统设置
+            </h3>
+        </div>
+        <form id="settingsForm">
+            <h5 class="mb-3">基础配置</h5>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label">最大并发下载数</label>
+                    <input type="number" class="form-control" name="max_concurrent_downloads" min="1" max="10" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">外部访问地址 (用于直链)</label>
+                    <input type="url" class="form-control" name="public_host" placeholder="http://your-domain:5000">
+                </div>
+            </div>
+
+            <h5 class="mb-3 mt-4">工具路径</h5>
+            <div class="mb-3">
+                <label class="form-label">N_m3u8DL-RE 路径</label>
+                <input type="text" class="form-control" name="n_m3u8dl_path" required>
+                <div class="form-text">可以是绝对路径或相对路径 (如 ./bin/N_m3u8DL-RE)</div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">FFmpeg 路径</label>
+                <input type="text" class="form-control" name="ffmpeg_path" required>
+                <div class="form-text">可以是绝对路径、相对路径或系统命令 (如 ffmpeg)</div>
+            </div>
+
+            <h5 class="mb-3 mt-4">存储配置</h5>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label">下载目录</label>
+                    <input type="text" class="form-control" name="download_dir" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">临时目录</label>
+                    <input type="text" class="form-control" name="temp_dir" required>
+                </div>
+            </div>
+            <div class="mb-3 form-check">
+                <input type="checkbox" class="form-check-input" id="deleteAfterDownload" name="delete_after_download">
+                <label class="form-check-label" for="deleteAfterDownload">下载完成后删除源文件 (仅保留 Aria2 推送)</label>
+            </div>
+
+            <h5 class="mb-3 mt-4">Aria2 配置</h5>
+            <div class="mb-3 form-check">
+                <input type="checkbox" class="form-check-input" id="aria2Enabled" name="aria2_enabled">
+                <label class="form-check-label" for="aria2Enabled">启用 Aria2 自动推送</label>
+            </div>
+            <div id="aria2Config" class="d-none">
+                <div class="row mb-3">
+                    <div class="col-md-8">
+                        <label class="form-label">RPC 地址</label>
+                        <input type="url" class="form-control" name="aria2_rpc_url" placeholder="http://localhost:6800/jsonrpc">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">RPC 密钥 (Secret)</label>
+                        <input type="text" class="form-control" name="aria2_rpc_secret">
+                    </div>
+                </div>
+            </div>
+
+            <h5 class="mb-3 mt-4">API 访问</h5>
+            <div class="mb-3 form-check">
+                <input type="checkbox" class="form-check-input" id="apiEnabled" name="api_enabled">
+                <label class="form-check-label" for="apiEnabled">启用免登录 API 访问</label>
+            </div>
+            <div id="apiConfig" class="d-none">
+                <div class="mb-3">
+                    <label class="form-label">API Key</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control font-monospace" name="api_key" id="apiKeyInput" readonly>
+                        <button class="btn btn-outline-secondary" type="button" id="copyApiKeyBtn" title="复制">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                        <button class="btn btn-outline-danger" type="button" id="resetApiKeyBtn" title="重置 Key">
+                            <i class="bi bi-arrow-clockwise"></i> 重置
+                        </button>
+                    </div>
+                    <div class="form-text">
+                        在请求 Header 中添加 <code>X-API-Key: 您的Key</code> 即可免登录调用接口。
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary-custom">
+                    <i class="bi bi-save"></i> 保存设置
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/settings.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // 加载设置
+        ui.loadSettings();
+        // 启动定时刷新统计数据 (侧边栏需要)
+        ui.startRefreshTimer();
+    });
+</script>
+{% endblock %}

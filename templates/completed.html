@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block page_title %}已完成{% endblock %}
+
+{% block content %}
+<div id="pageCompleted" class="page-content">
+    <div class="content-card">
+        <div class="content-card-header">
+            <h3 class="content-card-title">
+                <i class="bi bi-check-circle"></i>
+                已完成的任务
+            </h3>
+        </div>
+        <div id="completedTasks" class="task-list"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/tasks.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        window.currentPageType = 'completed';
+        ui.startRefreshTimer();
+    });
+</script>
+{% endblock %}

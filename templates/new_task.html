@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block page_title %}新建任务{% endblock %}
+
+{% block content %}
+<div id="pageNew" class="page-content">
+    <div class="content-card animate__animated animate__fadeIn">
+        <div class="content-card-header">
+            <h3 class="content-card-title">
+                <i class="bi bi-plus-circle"></i>
+                创建下载任务
+            </h3>
+        </div>
+        <form id="newTaskForm">
+            <div class="form-group">
+                <label class="form-label">M3U8 链接</label>
+                <input type="url" class="form-control" id="taskUrl" placeholder="https://example.com/video.m3u8" required>
+                <small class="text-muted">请输入有效的 M3U8 视频链接</small>
+            </div>
+            <div class="form-group">
+                <label class="form-label">文件名（可选）</label>
+                <input type="text" class="form-control" id="taskName" placeholder="留空则自动生成文件名">
+            </div>
+            <button type="submit" class="btn-primary-custom">
+                <i class="bi bi-download"></i> 开始下载
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/tasks.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // 绑定新建任务表单
+        document.getElementById('newTaskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const urlInput = document.getElementById('taskUrl');
+            const nameInput = document.getElementById('taskName');
+            const btn = e.target.querySelector('button');
+
+            try {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 创建中...';
+                
+                await api.createTask(urlInput.value, nameInput.value);
+                showToast('任务创建成功', 'success');
+                urlInput.value = '';
+                nameInput.value = '';
+                // 跳转到下载中页面
+                window.location.href = '/downloading';
+            } catch (err) {
+                showToast(err.message, 'danger');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-download"></i> 开始下载';
+            }
+        });
+        
+        // 启动定时刷新统计数据
+        ui.startRefreshTimer();
+    });
+</script>
+{% endblock %}

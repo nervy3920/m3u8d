@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block page_title %}下载中{% endblock %}
+
+{% block content %}
+<div id="pageDownloading" class="page-content">
+    <div class="content-card">
+        <div class="content-card-header">
+            <h3 class="content-card-title">
+                <i class="bi bi-arrow-down-circle"></i>
+                下载中的任务
+            </h3>
+        </div>
+        <div id="downloadingTasks" class="task-list"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/tasks.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // 设置当前页面类型，用于 tasks.js 刷新数据
+        window.currentPageType = 'downloading';
+        ui.startRefreshTimer();
+    });
+</script>
+{% endblock %}

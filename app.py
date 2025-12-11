@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory, send_file, make_response
+from flask import Flask, request, jsonify, send_from_directory, send_file, make_response, render_template, redirect, url_for
 from flask_cors import CORS
 import os
 import traceback
@@ -7,6 +7,7 @@ from functools import wraps
 import hashlib
 import secrets
 import requests
+import re
 
 from database import Database
 from downloader import DownloadManager
@@ -78,16 +79,81 @@ def require_auth(f):
     return decorated_function
 
 
+# 页面路由
 @app.route('/')
 def index():
-    """返回前端页面"""
-    return send_file('static/index.html')
+    """首页重定向"""
+    if not get_admin_password():
+        return redirect(url_for('init_page'))
+    
+    token = request.cookies.get('auth_token')
+    if token and verify_auth_token(token):
+        return redirect(url_for('new_task_page'))
+    return redirect(url_for('login_page'))
 
+@app.route('/init')
+def init_page():
+    """初始化页面"""
+    if get_admin_password():
+        return redirect(url_for('login_page'))
+    return render_template('init.html')
 
-@app.route('/app.js')
-def serve_app_js():
-    """返回前端逻辑代码"""
-    return send_from_directory('static', 'app.js')
+@app.route('/login')
+def login_page():
+    """登录页面"""
+    if not get_admin_password():
+        return redirect(url_for('init_page'))
+    
+    token = request.cookies.get('auth_token')
+    if token and verify_auth_token(token):
+        return redirect(url_for('new_task_page'))
+    return render_template('login.html')
+
+def check_page_auth():
+    """页面权限检查"""
+    if not get_admin_password():
+        return redirect(url_for('init_page'))
+    
+    token = request.cookies.get('auth_token')
+    if not token or not verify_auth_token(token):
+        return redirect(url_for('login_page'))
+    return None
+
+@app.route('/new')
+def new_task_page():
+    auth_redirect = check_page_auth()
+    if auth_redirect: return auth_redirect
+    return render_template('new_task.html', active_page='new')
+
+@app.route('/downloading')
+def downloading_page():
+    auth_redirect = check_page_auth()
+    if auth_redirect: return auth_redirect
+    return render_template('downloading.html', active_page='downloading')
+
+@app.route('/completed')
+def completed_page():
+    auth_redirect = check_page_auth()
+    if auth_redirect: return auth_redirect
+    return render_template('completed.html', active_page='completed')
+
+@app.route('/all')
+def all_tasks_page():
+    auth_redirect = check_page_auth()
+    if auth_redirect: return auth_redirect
+    return render_template('all_tasks.html', active_page='all')
+
+@app.route('/settings')
+def settings_page():
+    auth_redirect = check_page_auth()
+    if auth_redirect: return auth_redirect
+    return render_template('settings.html', active_page='settings')
+
+@app.route('/parser')
+def parser_page():
+    auth_redirect = check_page_auth()
+    if auth_redirect: return auth_redirect
+    return render_template('parser.html', active_page='parser')
 
 
 @app.route('/api/init', methods=['POST'])
@@ -257,11 +323,24 @@ def delete_task(task_id):
         download_manager.stop_download(task_id)
 
     # 删除文件
-    if delete_file and task['file_path'] and os.path.exists(task['file_path']):
-        try:
-            os.remove(task['file_path'])
-        except:
-            pass
+    if delete_file:
+        # 1. 删除已下载的视频文件
+        if task['file_path'] and os.path.exists(task['file_path']):
+            try:
+                os.remove(task['file_path'])
+            except:
+                pass
+        
+        # 2. 删除临时文件 (N_m3u8DL-RE 的临时目录)
+        # 临时目录结构通常是: temp_dir/save_name/
+        # 我们需要获取 save_name，这通常在 downloader.py 中生成，但这里我们可以尝试推断
+        # 或者更简单地，我们在 downloader.py 中添加一个清理临时文件的方法，或者在这里处理
+        # 由于 save_name 并没有直接存储在 task 表中（只有 custom_name），
+        # 但我们可以利用 task_id 来查找。
+        # N_m3u8DL-RE 默认会在 temp 目录下创建一个以 save_name 命名的文件夹
+        
+        # 更好的方式是调用 download_manager 的清理方法
+        download_manager.clean_temp_files(task_id, task.get('custom_name'))
 
     # 删除数据库记录
     db.delete_task(task_id)
@@ -363,6 +442,129 @@ def get_config():
         'n_m3u8dl_exists': os.path.exists(n_path) if ('/' in n_path or '\\' in n_path) else True,
         'ffmpeg_exists': os.path.exists(f_path) if ('/' in f_path or '\\' in f_path) else True,
     })
+
+@app.route('/api/parse/universal', methods=['POST'])
+@require_auth
+def parse_universal():
+    """通用视频解析"""
+    data = request.get_json()
+    url = data.get('url', '').strip()
+    
+    if not url:
+        return jsonify({'error': '请提供视频链接'}), 400
+        
+    try:
+        # 使用更真实的 Headers 模拟浏览器
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            'Cache-Control': 'max-age=0',
+            'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Upgrade-Insecure-Requests': '1'
+        }
+        
+        # 创建 Session 以维持 Cookie
+        session = requests.Session()
+        response = session.get(url, headers=headers, timeout=15)
+        
+        # 如果遇到 403，尝试使用 cloudscraper (如果安装了) 或者提示用户
+        if response.status_code == 403:
+            try:
+                import cloudscraper
+                # 创建 scraper 实例，尝试模拟不同的浏览器指纹
+                scraper = cloudscraper.create_scraper(
+                    browser={
+                        'browser': 'chrome',
+                        'platform': 'windows',
+                        'desktop': True
+                    }
+                )
+                response = scraper.get(url)
+                # cloudscraper 不会自动抛出 403 异常，需要手动检查
+                if response.status_code == 403:
+                     return jsonify({'error': '解析失败 (403 Forbidden): 即使使用了 Cloudscraper 也无法绕过防护。请稍后重试或手动获取 M3U8 链接。'}), 403
+            except ImportError:
+                return jsonify({'error': '解析失败 (403 Forbidden): 目标网站开启了 Cloudflare 防护，服务器未安装 cloudscraper 库。请尝试手动获取 M3U8 链接。'}), 403
+            except Exception as e:
+                return jsonify({'error': f'Cloudscraper 尝试失败: {str(e)}'}), 500
+        
+        response.raise_for_status()
+        html_content = response.text
+        
+        # 提取标题
+        title = "未命名视频"
+        
+        def clean_title(text):
+            # 去除 HTML 标签
+            text = re.sub(r'<[^>]+>', '', text)
+            # 去除特殊符号，只保留字母、数字、中文、空格、连字符
+            # 这一步是为了防止文件名错乱
+            text = re.sub(r'[^\w\s\-\u4e00-\u9fa5]', '', text)
+            return text.strip()
+
+        # 仅从 <title> 标签提取
+        title_tag_match = re.search(r"<title>(.*?)</title>", html_content, re.IGNORECASE)
+        if title_tag_match:
+            raw_title = title_tag_match.group(1).strip()
+            # 通常 title 包含网站名，如 "视频标题 - 网站名"
+            # 简单处理：取 - 或 | 前面的部分
+            if ' - ' in raw_title:
+                raw_title = raw_title.split(' - ')[0]
+            elif ' | ' in raw_title:
+                raw_title = raw_title.split(' | ')[0]
+            
+            cleaned = clean_title(raw_title)
+            if cleaned:
+                title = cleaned
+
+        # 提取 M3U8 链接
+        m3u8_urls = set()
+
+        # 规则 1: var hlsUrl = '...'; (Jable)
+        matches = re.findall(r"var\s+hlsUrl\s*=\s*['\"]([^'\"]+\.m3u8[^'\"]*)['\"]", html_content)
+        for m in matches: m3u8_urls.add(m)
+
+        # 规则 2: JSON 格式 "url":"...m3u8" (DPlayer 等)
+        # 匹配 "url":"https:\/\/...index.m3u8"
+        matches = re.findall(r'"url"\s*:\s*"([^"]+\.m3u8[^"]*)"', html_content)
+        for m in matches:
+            # 处理转义字符 \/ -> /
+            m3u8_urls.add(m.replace('\\/', '/'))
+
+        # 规则 3: <video ... src="..."> 或 <source ... src="...">
+        matches = re.findall(r'src\s*=\s*["\']([^"\']+\.m3u8[^"\']*)["\']', html_content)
+        for m in matches: m3u8_urls.add(m)
+
+        # 规则 4: 通用 http...m3u8 匹配 (最宽泛，可能误判，放在最后)
+        # 限制一下，必须以 http 开头，中间不含空白字符
+        matches = re.findall(r'(https?://[^\s"\'<>]+?\.m3u8[^\s"\'<>]*)', html_content)
+        for m in matches: m3u8_urls.add(m)
+
+        # 过滤无效链接
+        valid_urls = []
+        for u in m3u8_urls:
+            if u.startswith('http'):
+                valid_urls.append(u)
+        
+        if not valid_urls:
+            return jsonify({'error': '未找到 M3U8 链接或不支持该网站'}), 400
+            
+        return jsonify({
+            'success': True,
+            'count': len(valid_urls),
+            'results': valid_urls,
+            'title': title
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'解析失败: {str(e)}'}), 500
 
 
 @app.errorhandler(Exception)

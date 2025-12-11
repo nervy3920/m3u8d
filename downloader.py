@@ -4,6 +4,7 @@ import os
 import re
 import json
 import time
+import shutil
 import requests
 from urllib.parse import quote
 from pathlib import Path
@@ -463,3 +464,34 @@ class DownloadManager:
                 retries += 1
                 
         self.db.add_log(task_id, "Aria2 监控超时，未删除源文件")
+
+    def clean_temp_files(self, task_id, custom_name=None):
+        """清理临时文件"""
+        temp_dir = self.db.get_setting('temp_dir', './temp')
+        
+        # 尝试构建可能的临时目录名
+        # 1. 使用 custom_name
+        if custom_name:
+            possible_dir = os.path.join(temp_dir, custom_name)
+            if os.path.exists(possible_dir) and os.path.isdir(possible_dir):
+                try:
+                    shutil.rmtree(possible_dir)
+                    print(f"已删除临时目录: {possible_dir}")
+                except Exception as e:
+                    print(f"删除临时目录失败: {e}")
+        
+        # 2. 使用默认命名规则 (video_{task_id}_...)
+        # 由于时间戳不确定，我们需要遍历 temp 目录查找匹配的文件夹
+        try:
+            prefix = f"video_{task_id}_"
+            for item in os.listdir(temp_dir):
+                if item.startswith(prefix):
+                    full_path = os.path.join(temp_dir, item)
+                    if os.path.isdir(full_path):
+                        try:
+                            shutil.rmtree(full_path)
+                            print(f"已删除临时目录: {full_path}")
+                        except Exception as e:
+                            print(f"删除临时目录失败: {e}")
+        except Exception as e:
+            print(f"清理临时文件出错: {e}")
