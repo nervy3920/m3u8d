@@ -1,35 +1,40 @@
 from flask import Flask, request, jsonify, send_from_directory, send_file, make_response
 from flask_cors import CORS
-from dotenv import load_dotenv
 import os
 import traceback
 from pathlib import Path
 from functools import wraps
 import hashlib
 import secrets
+import requests
 
 from database import Database
 from downloader import DownloadManager
 
-# 加载环境变量
-load_dotenv()
-
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
+
+# 确保数据目录存在
+Path('./data').mkdir(parents=True, exist_ok=True)
+
+# 简单的 Secret Key 管理
+secret_file = Path('./data/secret.key')
+if not secret_file.exists():
+    secret_file.write_text(secrets.token_hex(32))
+app.config['SECRET_KEY'] = secret_file.read_text().strip()
+
 CORS(app, supports_credentials=True)
 
-# 初始化配置
-ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'admin123')
-N_M3U8DL_PATH = os.getenv('N_M3U8DL_PATH', './bin/N_m3u8DL-RE')
-FFMPEG_PATH = os.getenv('FFMPEG_PATH', 'ffmpeg')
-DOWNLOAD_DIR = os.getenv('DOWNLOAD_DIR', './downloads')
-TEMP_DIR = os.getenv('TEMP_DIR', './temp')
-DATABASE_PATH = os.getenv('DATABASE_PATH', './data/tasks.db')
-MAX_CONCURRENT_DOWNLOADS = int(os.getenv('MAX_CONCURRENT_DOWNLOADS', '3'))
+DATABASE_PATH = './data/tasks.db'
 
-# 初始化数据库和下载管理器
+# 初始化数据库
 db = Database(DATABASE_PATH)
-download_manager = DownloadManager(db, N_M3U8DL_PATH, FFMPEG_PATH, DOWNLOAD_DIR, TEMP_DIR, MAX_CONCURRENT_DOWNLOADS)
+
+# 初始化下载管理器 (配置将从数据库读取)
+download_manager = DownloadManager(db)
+
+# 获取管理员密码
+def get_admin_password():
+    return db.get_setting('admin_password')
 
 # 生成认证令牌
 def generate_auth_token(password):
@@ -39,24 +44,37 @@ def generate_auth_token(password):
 # 验证令牌
 def verify_auth_token(token):
     """验证认证令牌"""
-    expected_token = generate_auth_token(ADMIN_PASSWORD)
+    password = get_admin_password()
+    if not password:
+        return False
+    expected_token = generate_auth_token(password)
     return token == expected_token
 
 def require_auth(f):
     """验证密码装饰器"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # 优先检查 Cookie
+        # 检查系统是否已初始化
+        if not get_admin_password():
+             return jsonify({'error': '系统未初始化', 'code': 'NOT_INITIALIZED'}), 403
+
+        # 1. 检查 API Key (如果开启)
+        api_key = request.headers.get('X-API-Key')
+        if api_key:
+            if db.get_setting('api_enabled') == 'true' and api_key == db.get_setting('api_key'):
+                return f(*args, **kwargs)
+
+        # 2. 检查 Cookie
         token = request.cookies.get('auth_token')
         if token and verify_auth_token(token):
             return f(*args, **kwargs)
 
-        # 其次检查 Header（兼容旧方式）
+        # 3. 检查 Header 密码（兼容旧方式）
         password = request.headers.get('X-Admin-Password')
-        if password == ADMIN_PASSWORD:
+        if password and password == get_admin_password():
             return f(*args, **kwargs)
 
-        return jsonify({'error': '未授权，请重新登录'}), 401
+        return jsonify({'error': '未授权，请重新登录或提供有效的 API Key'}), 401
     return decorated_function
 
 
@@ -72,13 +90,33 @@ def serve_app_js():
     return send_from_directory('static', 'app.js')
 
 
+@app.route('/api/init', methods=['POST'])
+def init_system():
+    """初始化系统（设置密码）"""
+    if get_admin_password():
+        return jsonify({'error': '系统已初始化'}), 400
+    
+    data = request.get_json()
+    password = data.get('password', '').strip()
+    
+    if not password:
+        return jsonify({'error': '密码不能为空'}), 400
+        
+    db.set_setting('admin_password', password)
+    return jsonify({'success': True, 'message': '初始化成功'})
+
 @app.route('/api/auth', methods=['POST'])
 def auth():
     """验证密码"""
     data = request.get_json()
     password = data.get('password', '')
+    
+    admin_password = get_admin_password()
+    
+    if not admin_password:
+        return jsonify({'error': '系统未初始化', 'code': 'NOT_INITIALIZED'}), 403
 
-    if password == ADMIN_PASSWORD:
+    if password == admin_password:
         # 生成认证令牌
         token = generate_auth_token(password)
 
@@ -101,10 +139,13 @@ def logout():
 @app.route('/api/check-auth', methods=['GET'])
 def check_auth():
     """检查登录状态"""
+    if not get_admin_password():
+        return jsonify({'authenticated': False, 'initialized': False})
+        
     token = request.cookies.get('auth_token')
     if token and verify_auth_token(token):
-        return jsonify({'authenticated': True})
-    return jsonify({'authenticated': False})
+        return jsonify({'authenticated': True, 'initialized': True})
+    return jsonify({'authenticated': False, 'initialized': True})
 
 
 @app.route('/api/tasks', methods=['GET'])
@@ -133,7 +174,7 @@ def create_task():
         return jsonify({'error': '请提供下载链接'}), 400
 
     # 创建任务
-    task_id = db.create_task(url)
+    task_id = db.create_task(url, custom_name)
 
     # 启动下载
     success, message = download_manager.start_download(task_id, url, custom_name)
@@ -174,6 +215,27 @@ def stop_task(task_id):
     """停止任务"""
     success, message = download_manager.stop_download(task_id)
 
+    if success:
+        return jsonify({'success': True, 'message': message})
+    else:
+        return jsonify({'error': message}), 400
+
+
+@app.route('/api/tasks/<int:task_id>/retry', methods=['POST'])
+@require_auth
+def retry_task(task_id):
+    """重试/恢复任务"""
+    task = db.get_task(task_id)
+    if not task:
+        return jsonify({'error': '任务不存在'}), 404
+        
+    # 检查任务状态
+    if task['status'] in ['downloading', 'pending']:
+        return jsonify({'error': '任务正在运行或等待中'}), 400
+        
+    # 重新启动下载
+    success, message = download_manager.start_download(task_id, task['url'], task.get('custom_name'))
+    
     if success:
         return jsonify({'success': True, 'message': message})
     else:
@@ -226,11 +288,11 @@ def get_stats():
 
 
 @app.route('/videos/<path:filename>')
-@require_auth
 def serve_video(filename):
-    """提供视频文件"""
+    """提供视频文件 (公开访问，供 Aria2 和播放器使用)"""
+    download_dir = db.get_setting('download_dir', './downloads')
     try:
-        return send_from_directory(DOWNLOAD_DIR, filename, as_attachment=False)
+        return send_from_directory(download_dir, filename, as_attachment=False)
     except Exception as e:
         return jsonify({'error': f'文件不存在: {str(e)}'}), 404
 
@@ -243,18 +305,63 @@ def download_video(task_id):
     if not task or not task['file_path']:
         return jsonify({'error': '文件不存在'}), 404
 
+    download_dir = db.get_setting('download_dir', './downloads')
     filename = os.path.basename(task['file_path'])
-    return send_from_directory(DOWNLOAD_DIR, filename, as_attachment=True)
+    return send_from_directory(download_dir, filename, as_attachment=True)
 
+
+@app.route('/api/settings', methods=['GET'])
+@require_auth
+def get_settings():
+    """获取系统设置"""
+    settings = db.get_all_settings()
+    # 移除敏感信息
+    if 'admin_password' in settings:
+        del settings['admin_password']
+    return jsonify(settings)
+
+@app.route('/api/settings', methods=['POST'])
+@require_auth
+def update_settings():
+    """更新系统设置"""
+    data = request.get_json()
+    
+    # 校验路径是否存在
+    path_keys = ['n_m3u8dl_path', 'ffmpeg_path']
+    for key in path_keys:
+        if key in data:
+            path = data[key]
+            # 简单的路径检查，如果是命令(如 ffmpeg)则跳过检查，如果是路径则检查存在性
+            if '/' in path or '\\' in path:
+                if not os.path.exists(path):
+                    return jsonify({'error': f'路径不存在: {path}'}), 400
+    
+    # 更新设置
+    for key, value in data.items():
+        # 禁止通过此接口修改密码
+        if key == 'admin_password':
+            continue
+        db.set_setting(key, value)
+        
+    return jsonify({'success': True, 'message': '设置已更新'})
+
+@app.route('/api/settings/apikey', methods=['POST'])
+@require_auth
+def generate_api_key():
+    """生成新的 API Key"""
+    new_key = secrets.token_hex(16)
+    db.set_setting('api_key', new_key)
+    return jsonify({'success': True, 'api_key': new_key})
 
 @app.route('/api/config', methods=['GET'])
 def get_config():
-    """获取配置信息（不需要认证）"""
+    """获取基础配置信息（不需要认证）"""
+    n_path = db.get_setting('n_m3u8dl_path')
+    f_path = db.get_setting('ffmpeg_path')
+    
     return jsonify({
-        'n_m3u8dl_exists': os.path.exists(N_M3U8DL_PATH),
-        'ffmpeg_exists': os.path.exists(FFMPEG_PATH) or os.system(f'which {FFMPEG_PATH} > /dev/null 2>&1') == 0,
-        'download_dir': DOWNLOAD_DIR,
-        'temp_dir': TEMP_DIR
+        'n_m3u8dl_exists': os.path.exists(n_path) if ('/' in n_path or '\\' in n_path) else True,
+        'ffmpeg_exists': os.path.exists(f_path) if ('/' in f_path or '\\' in f_path) else True,
     })
 
 
@@ -279,13 +386,9 @@ def handle_exception(e):
 
 
 if __name__ == '__main__':
-    host = os.getenv('FLASK_HOST', '0.0.0.0')
-    port = int(os.getenv('FLASK_PORT', 5000))
-    debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
+    host = '0.0.0.0'
+    port = 5000
+    debug = False
 
     print(f"启动服务器: http://{host}:{port}")
-    print(f"N_m3u8DL-RE 路径: {N_M3U8DL_PATH}")
-    print(f"FFmpeg 路径: {FFMPEG_PATH}")
-    print(f"下载目录: {DOWNLOAD_DIR}")
-
     app.run(host=host, port=port, debug=debug)

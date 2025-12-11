@@ -54,6 +54,16 @@ const showToast = (message, type = 'info') => {
 
 // API 交互
 const api = {
+    async initSystem(password) {
+        const res = await fetch(`${API_BASE}/init`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password })
+        });
+        if (!res.ok) throw new Error((await res.json()).error || '初始化失败');
+        return await res.json();
+    },
+
     async login(password) {
         const res = await fetch(`${API_BASE}/auth`, {
             method: 'POST',
@@ -68,9 +78,9 @@ const api = {
         try {
             const res = await fetch(`${API_BASE}/check-auth`);
             const data = await res.json();
-            return data.authenticated;
+            return data; // 返回完整对象 { authenticated: bool, initialized: bool }
         } catch (e) {
-            return false;
+            return { authenticated: false, initialized: false };
         }
     },
 
@@ -105,6 +115,12 @@ const api = {
         return await res.json();
     },
 
+    async retryTask(taskId) {
+        const res = await fetch(`${API_BASE}/tasks/${taskId}/retry`, { method: 'POST' });
+        if (!res.ok) throw new Error((await res.json()).error || '重试任务失败');
+        return await res.json();
+    },
+
     async deleteTask(taskId, deleteFile = true) {
         const res = await fetch(`${API_BASE}/tasks/${taskId}?delete_file=${deleteFile}`, { method: 'DELETE' });
         if (!res.ok) throw new Error((await res.json()).error || '删除任务失败');
@@ -113,6 +129,28 @@ const api = {
 
     async getTaskLogs(taskId) {
         const res = await fetch(`${API_BASE}/tasks/${taskId}/logs`);
+        return await res.json();
+    },
+
+    async getSettings() {
+        const res = await fetch(`${API_BASE}/settings`);
+        if (!res.ok) throw new Error('获取设置失败');
+        return await res.json();
+    },
+
+    async updateSettings(settings) {
+        const res = await fetch(`${API_BASE}/settings`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(settings)
+        });
+        if (!res.ok) throw new Error((await res.json()).error || '更新设置失败');
+        return await res.json();
+    },
+
+    async generateApiKey() {
+        const res = await fetch(`${API_BASE}/settings/apikey`, { method: 'POST' });
+        if (!res.ok) throw new Error('生成 API Key 失败');
         return await res.json();
     }
 };
@@ -125,6 +163,45 @@ const ui = {
     },
 
     bindEvents() {
+        // 初始化表单
+        document.getElementById('initForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const pwd = document.getElementById('initPassword').value;
+            const pwdConfirm = document.getElementById('initPasswordConfirm').value;
+            const btn = e.target.querySelector('button');
+            const spinner = document.getElementById('initSpinner');
+            const btnText = document.getElementById('initBtnText');
+            const errorDiv = document.getElementById('initError');
+
+            if (pwd !== pwdConfirm) {
+                errorDiv.textContent = '两次输入的密码不一致';
+                errorDiv.classList.remove('d-none');
+                return;
+            }
+
+            try {
+                btn.disabled = true;
+                spinner.classList.remove('d-none');
+                btnText.textContent = '初始化中...';
+                errorDiv.classList.add('d-none');
+
+                await api.initSystem(pwd);
+                
+                // 初始化成功后自动登录
+                await api.login(pwd);
+                state.isAuthenticated = true;
+                this.showMainApp();
+                showToast('系统初始化成功', 'success');
+            } catch (err) {
+                errorDiv.textContent = err.message;
+                errorDiv.classList.remove('d-none');
+            } finally {
+                btn.disabled = false;
+                spinner.classList.add('d-none');
+                btnText.textContent = '初始化系统';
+            }
+        });
+
         // 登录表单
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -194,11 +271,106 @@ const ui = {
                 state.currentTaskId = null;
             });
         }
+
+        // Aria2 开关联动
+        const aria2Check = document.getElementById('aria2Enabled');
+        const aria2Config = document.getElementById('aria2Config');
+        if (aria2Check) {
+            aria2Check.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    aria2Config.classList.remove('d-none');
+                } else {
+                    aria2Config.classList.add('d-none');
+                }
+            });
+        }
+
+        // API 开关联动
+        const apiCheck = document.getElementById('apiEnabled');
+        const apiConfig = document.getElementById('apiConfig');
+        if (apiCheck) {
+            apiCheck.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    apiConfig.classList.remove('d-none');
+                    // 如果 Key 为空，自动生成一个
+                    const keyInput = document.getElementById('apiKeyInput');
+                    // 只有当是用户手动点击触发（e.isTrusted）且 Key 为空时才自动生成
+                    // 避免加载设置时自动触发
+                    if (e.isTrusted && !keyInput.value) {
+                        document.getElementById('resetApiKeyBtn').click();
+                    }
+                } else {
+                    apiConfig.classList.add('d-none');
+                }
+            });
+        }
+
+        // 复制 API Key
+        document.getElementById('copyApiKeyBtn').addEventListener('click', () => {
+            const keyInput = document.getElementById('apiKeyInput');
+            keyInput.select();
+            document.execCommand('copy');
+            showToast('API Key 已复制', 'success');
+        });
+
+        // 重置 API Key
+        document.getElementById('resetApiKeyBtn').addEventListener('click', async () => {
+            if (confirm('确定要重置 API Key 吗？旧的 Key 将立即失效。')) {
+                try {
+                    const data = await api.generateApiKey();
+                    document.getElementById('apiKeyInput').value = data.api_key;
+                    showToast('API Key 已重置', 'success');
+                } catch (err) {
+                    showToast(err.message, 'danger');
+                }
+            }
+        });
+
+        // 设置表单
+        document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const settings = {};
+            
+            // 处理 checkbox
+            settings['delete_after_download'] = formData.get('delete_after_download') ? 'true' : 'false';
+            settings['aria2_enabled'] = formData.get('aria2_enabled') ? 'true' : 'false';
+            settings['api_enabled'] = formData.get('api_enabled') ? 'true' : 'false';
+            
+            // 处理其他字段
+            for (let [key, value] of formData.entries()) {
+                if (key !== 'delete_after_download' && key !== 'aria2_enabled' && key !== 'api_enabled') {
+                    settings[key] = value;
+                }
+            }
+
+            try {
+                const btn = e.target.querySelector('button[type="submit"]');
+                const originalText = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 保存中...';
+
+                await api.updateSettings(settings);
+                showToast('设置已保存', 'success');
+            } catch (err) {
+                showToast(err.message, 'danger');
+            } finally {
+                const btn = e.target.querySelector('button[type="submit"]');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-save"></i> 保存设置';
+            }
+        });
     },
 
     async checkLoginStatus() {
-        const isAuth = await api.checkAuth();
-        if (isAuth) {
+        const authStatus = await api.checkAuth();
+        
+        if (!authStatus.initialized) {
+            this.showInitPage();
+            return;
+        }
+
+        if (authStatus.authenticated) {
             state.isAuthenticated = true;
             this.showMainApp();
         } else {
@@ -206,13 +378,22 @@ const ui = {
         }
     },
 
+    showInitPage() {
+        document.getElementById('initPage').classList.remove('d-none');
+        document.getElementById('loginPage').classList.add('d-none');
+        document.getElementById('mainApp').classList.add('d-none');
+        this.stopRefreshTimer();
+    },
+
     showLoginPage() {
+        document.getElementById('initPage').classList.add('d-none');
         document.getElementById('loginPage').classList.remove('d-none');
         document.getElementById('mainApp').classList.add('d-none');
         this.stopRefreshTimer();
     },
 
     showMainApp() {
+        document.getElementById('initPage').classList.add('d-none');
         document.getElementById('loginPage').classList.add('d-none');
         document.getElementById('mainApp').classList.remove('d-none');
         this.switchPage('new');
@@ -239,12 +420,17 @@ const ui = {
             'new': '新建任务',
             'downloading': '下载中',
             'completed': '已完成',
-            'all': '所有任务'
+            'all': '所有任务',
+            'settings': '系统设置'
         };
-        document.getElementById('pageTitle').textContent = titles[page];
+        document.getElementById('pageTitle').textContent = titles[page] || '系统设置';
 
-        // 立即刷新数据
-        this.refreshData();
+        if (page === 'settings') {
+            this.loadSettings();
+        } else {
+            // 立即刷新数据
+            this.refreshData();
+        }
     },
 
     startRefreshTimer() {
@@ -270,12 +456,24 @@ const ui = {
 
             // 2. 根据当前页面更新任务列表
             if (state.currentPage !== 'new') {
-                let status = '';
-                if (state.currentPage === 'downloading') status = 'downloading';
-                if (state.currentPage === 'completed') status = 'completed';
+                let tasks = [];
+                if (state.currentPage === 'downloading') {
+                    // 同时获取下载中和等待中的任务
+                    const [downloadingData, pendingData] = await Promise.all([
+                        api.getTasks('downloading'),
+                        api.getTasks('pending')
+                    ]);
+                    tasks = [...downloadingData.tasks, ...pendingData.tasks];
+                    // 按创建时间倒序排序 (ID 大的在前)
+                    tasks.sort((a, b) => b.id - a.id);
+                } else {
+                    let status = '';
+                    if (state.currentPage === 'completed') status = 'completed';
+                    const data = await api.getTasks(status);
+                    tasks = data.tasks;
+                }
                 
-                const data = await api.getTasks(status);
-                this.renderTaskList(data.tasks);
+                this.renderTaskList(tasks);
             }
 
             // 3. 如果详情模态框打开，更新日志
@@ -348,10 +546,19 @@ const ui = {
         const color = statusColors[task.status] || 'secondary';
         const progress = task.progress || 0;
         
+        // 标题显示逻辑：优先显示自定义名称，否则显示文件名，最后显示默认
+        let title = task.custom_name;
+        if (!title) {
+            title = task.url.split('/').pop().split('?')[0] || '未命名任务';
+        }
+
         let actions = '';
         if (task.status === 'downloading' || task.status === 'pending') {
             actions += `<button class="btn-sm-custom btn-danger-custom" onclick="stopTask(${task.id})"><i class="bi bi-stop-circle"></i> 停止</button>`;
+        } else if (task.status === 'failed' || task.status === 'cancelled') {
+            actions += `<button class="btn-sm-custom btn-primary-custom" onclick="retryTask(${task.id})"><i class="bi bi-arrow-clockwise"></i> 重试</button>`;
         }
+
         if (task.status === 'completed') {
             actions += `<button class="btn-sm-custom btn-play" onclick="playVideo('${task.file_path ? task.file_path.replace(/\\/g, '\\\\') : ''}', '${task.url}')"><i class="bi bi-play-fill"></i> 播放</button>`;
             actions += `<a href="/api/download/${task.id}" class="btn-sm-custom btn-download" target="_blank"><i class="bi bi-download"></i> 下载</a>`;
@@ -361,11 +568,23 @@ const ui = {
             actions += `<button class="btn-sm-custom btn-danger-custom" onclick="deleteTask(${task.id})"><i class="bi bi-trash"></i> 删除</button>`;
         }
 
+        // 详细进度信息
+        let detailsInfo = '';
+        if (task.status === 'downloading') {
+            detailsInfo = `
+                <div class="d-flex justify-content-between mt-1 small text-muted">
+                    <span><i class="bi bi-speedometer2"></i> ${task.speed || '-'}</span>
+                    <span><i class="bi bi-hourglass-split"></i> ${task.eta || '-'}</span>
+                    <span><i class="bi bi-file-earmark"></i> ${task.downloaded_size || '-'} / ${task.total_size || '-'}</span>
+                </div>
+            `;
+        }
+
         return `
             <div class="task-card ${task.status === 'completed' ? 'completed' : (task.status === 'failed' ? 'failed' : '')}">
                 <div class="task-header">
                     <div class="task-info">
-                        <h5 class="text-truncate" style="max-width: 500px;" title="${task.url}">${task.url.split('/').pop().split('?')[0] || '未命名任务'}</h5>
+                        <h5 class="text-truncate" style="max-width: 500px;" title="${title}">${title}</h5>
                         <div class="task-url text-truncate" style="max-width: 500px;">${task.url}</div>
                     </div>
                     <span class="task-badge bg-${color}-subtle text-${color} border border-${color}-subtle">
@@ -379,9 +598,10 @@ const ui = {
                         <small class="text-muted">${task.status === 'downloading' ? '下载中...' : ''}</small>
                     </div>
                     <div class="progress">
-                        <div class="progress-bar bg-${color} progress-bar-striped ${task.status === 'downloading' ? 'progress-bar-animated' : ''}" 
+                        <div class="progress-bar bg-${color} progress-bar-striped ${task.status === 'downloading' ? 'progress-bar-animated' : ''}"
                              role="progressbar" style="width: ${progress}%"></div>
                     </div>
+                    ${detailsInfo}
                 </div>
 
                 <div class="task-meta">
@@ -417,6 +637,29 @@ const ui = {
             // 自动滚动到底部
             logContainer.scrollTop = logContainer.scrollHeight;
         }
+    },
+
+    async loadSettings() {
+        try {
+            const settings = await api.getSettings();
+            const form = document.getElementById('settingsForm');
+            
+            // 填充表单
+            for (const [key, value] of Object.entries(settings)) {
+                const input = form.elements[key];
+                if (input) {
+                    if (input.type === 'checkbox') {
+                        input.checked = value === 'true';
+                        // 触发 change 事件以更新 UI (如 Aria2 配置区域显示)
+                        input.dispatchEvent(new Event('change'));
+                    } else {
+                        input.value = value;
+                    }
+                }
+            }
+        } catch (err) {
+            showToast('加载设置失败: ' + err.message, 'danger');
+        }
     }
 };
 
@@ -434,6 +677,18 @@ window.stopTask = async (id) => {
         try {
             await api.stopTask(id);
             showToast('任务已停止', 'success');
+            ui.refreshData();
+        } catch (err) {
+            showToast(err.message, 'danger');
+        }
+    }
+};
+
+window.retryTask = async (id) => {
+    if (confirm('确定要重试该任务吗？')) {
+        try {
+            await api.retryTask(id);
+            showToast('任务已重新开始', 'success');
             ui.refreshData();
         } catch (err) {
             showToast(err.message, 'danger');

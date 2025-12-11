@@ -41,9 +41,32 @@ class Database:
                 file_size INTEGER,
                 duration TEXT,
                 error_message TEXT,
-                log_file TEXT
+                log_file TEXT,
+                custom_name TEXT,
+                speed TEXT,
+                eta TEXT,
+                total_size TEXT,
+                downloaded_size TEXT,
+                aria2_gid TEXT
             )
         ''')
+        
+        # 尝试添加新字段（用于旧数据库迁移）
+        new_columns = [
+            ('custom_name', 'TEXT'),
+            ('speed', 'TEXT'),
+            ('eta', 'TEXT'),
+            ('total_size', 'TEXT'),
+            ('downloaded_size', 'TEXT'),
+            ('aria2_gid', 'TEXT')
+        ]
+        
+        for col_name, col_type in new_columns:
+            try:
+                cursor.execute(f'ALTER TABLE tasks ADD COLUMN {col_name} {col_type}')
+            except sqlite3.OperationalError:
+                # 列已存在
+                pass
 
         # 创建日志表
         cursor.execute('''
@@ -56,19 +79,72 @@ class Database:
             )
         ''')
 
+        # 创建设置表
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        ''')
+
+        # 插入默认设置（如果不存在）
+        default_settings = {
+            'max_concurrent_downloads': '3',
+            'n_m3u8dl_path': './bin/N_m3u8DL-RE',
+            'ffmpeg_path': './bin/ffmpeg',
+            'download_dir': './downloads',
+            'temp_dir': './temp',
+            'aria2_enabled': 'false',
+            'aria2_rpc_url': 'http://localhost:6800/jsonrpc',
+            'aria2_rpc_secret': '',
+            'delete_after_download': 'false', # 下载完成后删除本地文件
+            'public_host': 'http://localhost:5000', # 用于生成直链的外部访问地址
+            'api_enabled': 'false', # 是否开启免登录 API
+            'api_key': '' # API 密钥
+        }
+
+        for key, value in default_settings.items():
+            cursor.execute('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', (key, value))
+
         conn.commit()
         conn.close()
 
-    def create_task(self, url):
+    def get_setting(self, key, default=None):
+        """获取设置"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT value FROM settings WHERE key = ?', (key,))
+        result = cursor.fetchone()
+        conn.close()
+        return result['value'] if result else default
+
+    def set_setting(self, key, value):
+        """更新设置"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', (key, str(value)))
+        conn.commit()
+        conn.close()
+
+    def get_all_settings(self):
+        """获取所有设置"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT key, value FROM settings')
+        results = cursor.fetchall()
+        conn.close()
+        return {row['key']: row['value'] for row in results}
+
+    def create_task(self, url, custom_name=None):
         """创建新任务"""
         conn = self.get_connection()
         cursor = conn.cursor()
 
         created_at = datetime.now().isoformat()
         cursor.execute('''
-            INSERT INTO tasks (url, status, created_at)
-            VALUES (?, ?, ?)
-        ''', (url, 'pending', created_at))
+            INSERT INTO tasks (url, status, created_at, custom_name)
+            VALUES (?, ?, ?, ?)
+        ''', (url, 'pending', created_at, custom_name))
 
         task_id = cursor.lastrowid
         conn.commit()
