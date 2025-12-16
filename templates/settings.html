@@ -35,6 +35,16 @@
                 <input type="text" class="form-control" name="ffmpeg_path" required>
                 <div class="form-text">可以是绝对路径、相对路径或系统命令 (如 ffmpeg)</div>
             </div>
+            <div class="mb-3">
+                <label class="form-label">ChromeDriver 路径 (可选)</label>
+                <input type="text" class="form-control" name="chromedriver_path">
+                <div class="form-text">用于 Selenium 网页抓取。如果已在系统 PATH 中，可留空或填 chromedriver</div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Chrome 浏览器路径 (可选)</label>
+                <input type="text" class="form-control" name="chrome_binary_path">
+                <div class="form-text">指定 Chrome/Chromium 可执行文件的路径。如果未自动找到，请在此指定。</div>
+            </div>
 
             <h5 class="mb-3 mt-4">存储配置</h5>
             <div class="row mb-3">
@@ -67,6 +77,11 @@
                         <label class="form-label">RPC 密钥 (Secret)</label>
                         <input type="text" class="form-control" name="aria2_rpc_secret">
                     </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Aria2 下载目录 (可选)</label>
+                    <input type="text" class="form-control" name="aria2_out_dir" placeholder="留空则使用 Aria2 默认下载目录">
+                    <div class="form-text">指定 Aria2 将文件保存到的绝对路径。请确保 Aria2 进程有权限写入该目录。</div>
                 </div>
             </div>
 

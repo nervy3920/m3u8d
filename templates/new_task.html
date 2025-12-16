@@ -8,22 +8,30 @@
         <div class="content-card-header">
             <h3 class="content-card-title">
                 <i class="bi bi-plus-circle"></i>
-                创建下载任务
+                创建下载任务（支持单个或批量）
             </h3>
         </div>
         <form id="newTaskForm">
             <div class="form-group">
-                <label class="form-label">M3U8 链接</label>
-                <input type="url" class="form-control" id="taskUrl" placeholder="https://example.com/video.m3u8" required>
-                <small class="text-muted">请输入有效的 M3U8 视频链接</small>
+                <label class="form-label">任务输入（支持两种格式）</label>
+                <textarea class="form-control" id="taskText" rows="6" placeholder="格式1：一行一个链接
+格式2：一行一个 链接|文件名（例如 https://.../index.m3u8|自定义名称）"></textarea>
+                <small class="text-muted">如果只提交单个链接也可直接填写一行。批量提交每行视为一个任务。</small>
             </div>
-            <div class="form-group">
-                <label class="form-label">文件名（可选）</label>
+
+            <div class="form-group mt-2">
+                <label class="form-label">单个任务可选文件名（仅在单个链接时生效）</label>
                 <input type="text" class="form-control" id="taskName" placeholder="留空则自动生成文件名">
             </div>
-            <button type="submit" class="btn-primary-custom">
-                <i class="bi bi-download"></i> 开始下载
-            </button>
+
+            <div class="form-actions mt-3">
+                <button type="submit" class="btn-primary-custom" id="submitBtn">
+                    <i class="bi bi-download"></i> 提交任务
+                </button>
+                <button type="button" class="btn-secondary-custom ms-2" id="clearBtn">
+                    <i class="bi bi-trash"></i> 清空
+                </button>
+            </div>
         </form>
     </div>
 </div>
@@ -33,31 +41,70 @@
 <script src="/static/js/tasks.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        // 绑定新建任务表单
-        document.getElementById('newTaskForm').addEventListener('submit', async (e) => {
+        const form = document.getElementById('newTaskForm');
+        const textArea = document.getElementById('taskText');
+        const nameInput = document.getElementById('taskName');
+        const submitBtn = document.getElementById('submitBtn');
+        const clearBtn = document.getElementById('clearBtn');
+
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const urlInput = document.getElementById('taskUrl');
-            const nameInput = document.getElementById('taskName');
-            const btn = e.target.querySelector('button');
+            const payloadText = textArea.value.trim();
+            const singleName = nameInput.value.trim() || null;
+
+            if (!payloadText) {
+                showToast('请填写链接或批量文本', 'warning');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 提交中...';
 
             try {
-                btn.disabled = true;
-                btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 创建中...';
-                
-                await api.createTask(urlInput.value, nameInput.value);
-                showToast('任务创建成功', 'success');
-                urlInput.value = '';
+                // 如果只有一行并且没有竖线并且提供了单文件名，则发送 {url, name}
+                const lines = payloadText.split(/\r?\n/).map(l => l.trim()).filter(l => l);
+                if (lines.length === 1 && !lines[0].includes('\n') && !lines[0].includes('|')) {
+                    // 单个链接提交，如用户填了单独的文件名则一并提交
+                    const res = await fetch('/api/tasks', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: lines[0], name: singleName })
+                    });
+                    if (!res.ok) {
+                        const err = await res.json();
+                        throw new Error(err.error || '创建任务失败');
+                    }
+                } else {
+                    // 批量提交，直接把文本发送到后端由后端解析每行
+                    const res = await fetch('/api/tasks', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: payloadText })
+                    });
+                    if (!res.ok) {
+                        const err = await res.json();
+                        throw new Error(err.error || '批量创建任务失败');
+                    }
+                }
+
+                showToast('任务提交成功', 'success');
+                // 清空并跳转到下载页查看任务
+                textArea.value = '';
                 nameInput.value = '';
-                // 跳转到下载中页面
                 window.location.href = '/downloading';
             } catch (err) {
-                showToast(err.message, 'danger');
+                showToast(err.message || String(err), 'danger');
             } finally {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-download"></i> 开始下载';
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-download"></i> 提交任务';
             }
         });
-        
+
+        clearBtn.addEventListener('click', () => {
+            textArea.value = '';
+            nameInput.value = '';
+        });
+
         // 启动定时刷新统计数据
         ui.startRefreshTimer();
     });

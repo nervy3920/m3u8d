@@ -376,6 +376,22 @@ body {
     box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
 }
 
+.btn-secondary-custom {
+    background: #e9ecef;
+    border: none;
+    padding: 12px 30px;
+    border-radius: 10px;
+    font-weight: 600;
+    color: #495057;
+    transition: all 0.3s;
+}
+
+.btn-secondary-custom:hover {
+    background: #dee2e6;
+    color: #212529;
+    transform: translateY(-2px);
+}
+
 /* 任务列表 */
 .task-list {
     display: flex;

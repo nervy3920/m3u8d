@@ -1,5 +1,5 @@
-// 任务列表渲染逻辑
-window.renderTaskList = (tasks) => {
+// 任务列表渲染逻辑（支持复选、分页）
+window.renderTaskList = (tasks, pagination) => {
     const containerId = `${window.currentPageType}Tasks`;
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -12,11 +12,39 @@ window.renderTaskList = (tasks) => {
                 <p>当前列表没有任务数据</p>
             </div>
         `;
+        // 清空分页
+        const pager = document.getElementById('paginationControls');
+        if (pager) pager.innerHTML = '';
         return;
     }
 
+    // 获取当前选中的任务ID
+    const currentCheckedIds = Array.from(container.querySelectorAll('.task-checkbox:checked')).map(cb => cb.value);
+
     const html = tasks.map(task => createTaskCard(task)).join('');
     container.innerHTML = html;
+
+    // 恢复选中状态
+    if (currentCheckedIds.length > 0) {
+        currentCheckedIds.forEach(id => {
+            const checkbox = document.getElementById(`taskCheckbox${id}`);
+            if (checkbox) {
+                checkbox.checked = true;
+            }
+        });
+    }
+
+    // 渲染分页（如果提供）
+    if (pagination && document.getElementById('paginationControls')) {
+        const pager = document.getElementById('paginationControls');
+        const page = pagination.page || 1;
+        const total_pages = pagination.total_pages || 1;
+        let pagesHtml = '';
+        for (let i = 1; i <= total_pages; i++) {
+            pagesHtml += `<li class="page-item ${i === page ? 'active' : ''}"><a class="page-link" href="javascript:gotoPage(${i})">${i}</a></li>`;
+        }
+        pager.innerHTML = pagesHtml;
+    }
 };
 
 function createTaskCard(task) {
@@ -41,8 +69,17 @@ function createTaskCard(task) {
     // 标题显示逻辑：优先显示自定义名称，否则显示文件名，最后显示默认
     let title = task.custom_name;
     if (!title) {
-        title = task.url.split('/').pop().split('?')[0] || '未命名任务';
+        // 尝试从 file_path 获取文件名
+        if (task.file_path) {
+            title = task.file_path.split(/[\\/]/).pop();
+        } else {
+            title = task.url.split('/').pop().split('?')[0] || '未命名任务';
+        }
     }
+
+    // 显示提交名与生成名的简短信息（用于详情也可查看完整）
+    const generatedName = task.file_path ? (task.file_path.split(/[\\/]/).pop()) : '等待生成...';
+    const submittedName = task.custom_name || '未指定 (自动生成)';
 
     let actions = '';
     if (task.status === 'downloading' || task.status === 'pending') {
@@ -74,12 +111,19 @@ function createTaskCard(task) {
 
     return `
         <div class="task-card ${task.status === 'completed' ? 'completed' : (task.status === 'failed' ? 'failed' : '')}">
-            <div class="task-header">
-                <div class="task-info">
-                    <h5 class="text-truncate" style="max-width: 500px;" title="${title}">${title}</h5>
-                    <div class="task-url text-truncate" style="max-width: 500px;">${task.url}</div>
+            <div class="task-header d-flex align-items-start">
+                <div class="form-check me-3">
+                    <input class="form-check-input task-checkbox" type="checkbox" value="${task.id}" id="taskCheckbox${task.id}">
                 </div>
-                <span class="task-badge bg-${color}-subtle text-${color} border border-${color}-subtle">
+                <div class="task-info flex-grow-1">
+                    <h5 class="text-truncate" style="max-width: 500px;" title="${title}">${title}</h5>
+                    <div class="small text-muted mb-1">
+                        <span class="me-3"><i class="bi bi-tag"></i> 提交名: ${submittedName}</span>
+                        <span><i class="bi bi-file-earmark-text"></i> 生成名: ${generatedName}</span>
+                    </div>
+                    <div class="task-url text-truncate text-muted small" style="max-width: 500px;"><i class="bi bi-link-45deg"></i> ${task.url}</div>
+                </div>
+                <span class="task-badge bg-${color}-subtle text-${color} border border-${color}-subtle ms-3">
                     ${statusText[task.status]}
                 </span>
             </div>
@@ -186,6 +230,104 @@ window.deleteTask = async (id) => {
             modal.hide();
         } catch (err) {
             showToast(err.message, 'danger');
+        }
+    };
+
+    confirmModal.addEventListener('hidden.bs.modal', () => {
+        confirmModal.remove();
+    });
+};
+
+// 全选/取消全选
+window.toggleSelectAll = (checked) => {
+    // 只选择当前可见的任务列表中的复选框
+    const containerId = `${window.currentPageType}Tasks`;
+    const container = document.getElementById(containerId);
+    if (container) {
+        const checkboxes = container.querySelectorAll('.task-checkbox');
+        // 如果传入了 checked 参数，则强制设置；否则进行反选
+        if (typeof checked === 'boolean') {
+            checkboxes.forEach(cb => cb.checked = checked);
+        } else {
+            // 检查是否所有都已选中
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+            checkboxes.forEach(cb => cb.checked = !allChecked);
+        }
+    }
+};
+
+// 批量删除选中
+window.batchDeleteSelected = async () => {
+    const checkboxes = document.querySelectorAll('.task-checkbox:checked');
+    const ids = Array.from(checkboxes).map(cb => cb.value);
+
+    if (ids.length === 0) {
+        showToast('请先选择要删除的任务', 'warning');
+        return;
+    }
+
+    // 创建一个自定义的确认对话框
+    const confirmModal = document.createElement('div');
+    confirmModal.className = 'modal fade';
+    confirmModal.id = 'batchDeleteConfirmModal';
+    confirmModal.innerHTML = `
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">批量删除确认</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>确定要删除选中的 ${ids.length} 个任务吗？</p>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="batchDeleteFileCheck" checked>
+                        <label class="form-check-label" for="batchDeleteFileCheck">
+                            同时删除已下载的文件
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-danger" id="confirmBatchDeleteBtn">删除</button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(confirmModal);
+
+    const modal = new bootstrap.Modal(confirmModal);
+    modal.show();
+
+    document.getElementById('confirmBatchDeleteBtn').onclick = async () => {
+        const deleteFile = document.getElementById('batchDeleteFileCheck').checked;
+        const btn = document.getElementById('confirmBatchDeleteBtn');
+        btn.disabled = true;
+        btn.innerHTML = '删除中...';
+
+        try {
+            const res = await fetch('/api/tasks/batch-delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: ids, delete_file: deleteFile })
+            });
+            
+            if (!res.ok) {
+                throw new Error('批量删除请求失败');
+            }
+            
+            const data = await res.json();
+            if (data.success) {
+                showToast(`批量删除完成`, 'success');
+                ui.refreshData();
+                modal.hide();
+            } else {
+                showToast(data.error || '批量删除失败', 'danger');
+            }
+        } catch (err) {
+            showToast(err.message, 'danger');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '删除';
         }
     };
 

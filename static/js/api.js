@@ -42,17 +42,43 @@ const api = {
         return await res.json();
     },
 
-    async getTasks(status = '') {
-        const url = status ? `${API_BASE}/tasks?status=${status}` : `${API_BASE}/tasks`;
+    /**
+     * 获取任务，支持 status 与分页参数
+     * getTasks(status='', page=1, per_page=20)
+     * 返回 { tasks: [...], pagination: {...} }
+     */
+    async getTasks(status = '', page = 1, per_page = 20) {
+        let url = `${API_BASE}/tasks?page=${page}&per_page=${per_page}`;
+        if (status) url += `&status=${encodeURIComponent(status)}`;
         const res = await fetch(url);
+        if (!res.ok) throw new Error((await res.json()).error || '获取任务失败');
         return await res.json();
     },
 
-    async createTask(url, name) {
+    /**
+     * 创建任务：兼容单个和批量
+     * - createTask(url, name)  (单个)
+     * - createTask({ text: 'line1\nline2' }) (批量)
+     */
+    async createTask(urlOrPayload, name) {
+        let body;
+        if (typeof urlOrPayload === 'string') {
+            // 如果包含换行或竖线，使用 text 字段批量提交
+            if (urlOrPayload.includes('\n') || urlOrPayload.includes('|')) {
+                body = { text: urlOrPayload };
+            } else {
+                body = { url: urlOrPayload, name: name || '' };
+            }
+        } else if (typeof urlOrPayload === 'object' && urlOrPayload !== null) {
+            body = urlOrPayload;
+        } else {
+            throw new Error('无效的参数');
+        }
+
         const res = await fetch(`${API_BASE}/tasks`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url, name })
+            body: JSON.stringify(body)
         });
         if (!res.ok) throw new Error((await res.json()).error || '创建任务失败');
         return await res.json();
@@ -73,6 +99,21 @@ const api = {
     async deleteTask(taskId, deleteFile = true) {
         const res = await fetch(`${API_BASE}/tasks/${taskId}?delete_file=${deleteFile}`, { method: 'DELETE' });
         if (!res.ok) throw new Error((await res.json()).error || '删除任务失败');
+        return await res.json();
+    },
+
+    /**
+     * 批量删除任务
+     * ids: array of ids
+     * deleteFile: boolean
+     */
+    async batchDelete(ids, deleteFile = true) {
+        const res = await fetch(`${API_BASE}/tasks/batch-delete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids, delete_file: deleteFile })
+        });
+        if (!res.ok) throw new Error((await res.json()).error || '批量删除失败');
         return await res.json();
     },
 
@@ -109,13 +150,23 @@ const api = {
         return await res.json();
     },
 
-    async parseUniversal(url) {
+    async parseUniversal(url, useSelenium = false) {
         const res = await fetch(`${API_BASE}/parse/universal`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url })
+            body: JSON.stringify({ url, use_selenium: useSelenium })
         });
         if (!res.ok) throw new Error((await res.json()).error || '解析失败');
+        return await res.json();
+    },
+
+    async parseBatch(urls, useSelenium = false) {
+        const res = await fetch(`${API_BASE}/parse/batch`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ urls, use_selenium: useSelenium })
+        });
+        if (!res.ok) throw new Error((await res.json()).error || '批量解析失败');
         return await res.json();
     }
 };

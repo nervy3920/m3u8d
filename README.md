@@ -1,136 +1,155 @@
 # M3U8 视频下载管理器
 
-一个基于 Python Flask 和 N_m3u8DL-RE 的现代化 M3U8 视频下载管理系统。提供简洁友好的 Web 界面，支持任务队列、并发控制、实时进度监控、在线播放、Aria2 自动推送以及 **通用视频解析**。
+一个基于 Python Flask 和 N_m3u8DL-RE 的现代化 M3U8 视频下载管理系统。提供简洁友好的 Web 界面，支持任务队列、并发控制、实时进度监控、在线播放、Aria2 自动推送以及 **智能视频解析**。
 
 ## ✨ 功能特性
 
-*   **Web 管理界面**：基于 Bootstrap 5 的响应式设计，操作直观。
-*   **任务管理**：支持创建、停止、删除下载任务。
-*   **通用视频解析**：**新增** 通用视频解析功能，支持从网页自动提取 M3U8 链接和标题，支持 Cloudflare 绕过，支持 DPlayer 在线预览。
-*   **并发控制**：支持设置最大并发下载数，多余任务自动进入等待队列。
-*   **实时监控**：实时显示下载进度、速度和详细日志。
-*   **在线播放**：下载完成后可直接在浏览器中预览播放视频。
-*   **Aria2 推送**：支持下载完成后自动将视频直链推送到 Aria2 进行二次下载或分发。
-*   **API 访问**：支持生成 API Key，实现免登录调用接口提交任务。
-*   **动态配置**：所有配置（路径、并发数、Aria2等）均可在 Web 界面动态修改，无需重启服务。
-*   **安全认证**：内置初始化向导和密码认证机制。
+* **Web 管理界面**：基于 Bootstrap 5 的响应式设计，操作直观，支持移动端访问。
+* **智能解析**：
+  * **通用解析**：输入网页地址自动提取 M3U8 链接和视频标题。
+  * **批量解析**：支持批量输入网页链接，自动解析并添加到下载队列。
+  * **高级模式**：支持调用 Chrome (Selenium) 模拟浏览器行为，绕过部分反爬虫限制。
+* **任务管理**：
+  * 支持自定义文件名（解析时自动获取标题）。
+  * 支持任务队列管理，可设置最大并发下载数。
+  * 支持暂停、恢复、删除任务（可选同时删除文件）。
+* **实时监控**：实时显示下载进度、速度、剩余时间以及详细的控制台日志。
+* **在线预览**：下载完成后可直接在浏览器中预览播放视频（支持 MP4/HLS）。
+* **Aria2 推送**：支持下载完成后自动将视频直链推送到 Aria2 进行二次分发或存储。
+* **API 支持**：提供完整的 API 接口，支持生成 API Key 进行免登录调用。
+* **安全认证**：内置初始化向导和密码认证机制，保护系统安全。
 
 ## 🛠️ 系统要求
 
-*   Python 3.7+
-*   [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE) (核心下载工具)
-*   [FFmpeg](https://ffmpeg.org/) (用于视频合并与处理)
+* **操作系统**: Linux / macOS / Windows
+* **Python**: 3.7+
+* **核心工具**:
+  * [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE) (必须)
+  * [FFmpeg](https://ffmpeg.org/) (必须，用于视频合并)
+  * Google Chrome & ChromeDriver (可选，用于高级解析)
 
-## 🚀 快速开始
+## 🚀 安装部署
 
-### 1. 安装依赖
-
-首先克隆或下载本项目，然后安装 Python 依赖：
+### 1. 获取代码与安装依赖
 
 ```bash
+# 克隆项目 (如果已下载可跳过)
+git clone https://github.com/nervy3920/m3u8d.git
+cd m3u8d
+
+# 安装 Python 依赖
 pip install -r requirements.txt
 ```
 
-### 2. 准备外部工具
+### 2. 配置核心工具
 
 本项目依赖 `N_m3u8DL-RE` 和 `FFmpeg`。
 
-*   **N_m3u8DL-RE**: 下载对应系统的版本，解压并将可执行文件放置在 `./bin/` 目录下（或在系统设置中指定路径）。
-*   **FFmpeg**: 确保系统已安装 FFmpeg，或者将其可执行文件放置在 `./bin/` 目录下。
+1. **N_m3u8DL-RE**: 下载对应系统的版本，解压并将可执行文件放置在项目根目录下的 `./bin/` 文件夹中（或者在系统设置中指定绝对路径）。
+2. **FFmpeg**: 确保系统已安装 FFmpeg，或者将其可执行文件放置在 `./bin/` 目录下。
 
-### 3. 启动服务
+### 3. 配置 Chrome 环境 (可选)
+
+如果需要使用 **Selenium 高级解析** 功能（用于抓取动态加载或有反爬限制的网页），需要在服务器上安装 Chrome 浏览器。
+
+**Debian / Ubuntu 系统:**
+
+```bash
+# 1. 下载安装包
+wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+
+# 2. 安装
+sudo apt install ./google-chrome-stable_current_amd64.deb
+
+# 3. 修复依赖 (如果安装报错)
+sudo apt -f install
+```
+
+**CentOS / Fedora / RHEL 系统:**
+
+```bash
+# 1. 下载安装包
+wget https://dl.google.com/linux/direct/google-chrome-stable_current_x86_64.rpm
+
+# 2. 安装
+sudo dnf localinstall ./google-chrome-stable_current_x86_64.rpm
+```
+
+*注：系统会自动寻找匹配的 ChromeDriver，如果失败请手动下载对应版本的 ChromeDriver 并配置路径。*
+
+### 4. 启动服务
 
 **Linux / macOS:**
+
 ```bash
 python app.py
 ```
 
 **Windows:**
+
 ```bash
 python app.py
 ```
 
-服务启动后，访问浏览器：`http://localhost:5000`
+服务启动后，默认访问地址：`http://localhost:5000`
 
-### 4. 系统初始化
-
-首次访问时，系统会进入**初始化向导**。请设置管理员密码，该密码将用于后续登录管理界面。
+首次访问将进入 **初始化向导**，请设置管理员密码。
 
 ## 📖 使用指南
 
-### 任务管理
-1.  **新建任务**：输入 M3U8 链接，可选自定义文件名。
-2.  **视频解析**：在“视频解析”页面输入视频网页链接，系统将自动解析 M3U8 地址。
-    *   支持预览播放：解析成功后可直接预览视频内容。
-    *   支持多结果选择：如果页面包含多个视频源，可选择下载。
-3.  **任务队列**：任务会自动排队，根据“最大并发数”设置依次执行。
-4.  **管理操作**：支持停止、删除（可选同时删除文件和临时文件）、查看详情。
+### 任务下载
+
+1. **新建任务**：直接输入 M3U8 链接，可手动指定文件名。
+2. **视频解析**：
+   * **单条解析**：输入视频播放页 URL，点击解析。成功后可预览视频，点击“下载”自动创建任务（文件名自动填充）。
+   * **批量解析**：切换到“批量解析”标签，每行输入一个视频页 URL。解析成功后可一键全部添加到下载队列。
+   * **使用 Selenium**：勾选“使用 Selenium”可应对复杂网页，但速度较慢且消耗服务器资源。
 
 ### 系统设置
-在侧边栏点击“系统设置”可配置：
-*   **基础配置**：最大并发数、外部访问地址（用于生成直链）。
-*   **工具路径**：N_m3u8DL-RE 和 FFmpeg 的路径。
-*   **存储配置**：下载目录和临时目录。
-*   **Aria2 配置**：开启后，下载完成的视频会自动推送到指定的 Aria2 RPC。
-*   **API 访问**：开启后，可获取 API Key 用于外部程序调用。
+
+* **并发设置**：在设置页面调整“最大并发下载数”，多余任务将排队等待。
+* **路径配置**：如果工具不在默认目录，请在设置中填写 N_m3u8DL-RE 和 FFmpeg 的绝对路径。
+* **Aria2 配置**：填写 Aria2 RPC 地址和密钥，开启后下载完成的文件将自动推送到 Aria2。
 
 ## 🔌 API 文档
 
-开启 API 访问功能后，可以通过在 Header 中添加 `X-API-Key` 来免登录调用接口。
+开启 API 访问功能后，在 Header 中添加 `X-API-Key` 即可调用。
 
-### 1. 创建任务
+### 1. 创建任务 (支持批量)
 
-*   **URL**: `/api/tasks`
-*   **Method**: `POST`
-*   **Headers**:
-    *   `Content-Type`: `application/json`
-    *   `X-API-Key`: `您的API_Key`
-*   **Body**:
-    ```json
-    {
-        "url": "https://example.com/video.m3u8",
-        "name": "自定义文件名 (可选)"
-    }
-    ```
+* **URL**: `/api/tasks`
+* **Method**: `POST`
+* **Body**:
+  ```json
+  // 单个任务
+  {
+      "url": "http://example.com/video.m3u8",
+      "name": "自定义文件名"
+  }
+  
+  // 批量任务 (文本格式)
+  {
+      "text": "http://url1.m3u8|文件名1\nhttp://url2.m3u8"
+  }
+  ```
 
-### 2. 通用视频解析
+### 2. 批量解析
 
-*   **URL**: `/api/parse/universal`
-*   **Method**: `POST`
-*   **Headers**: `X-API-Key: 您的API_Key`
-*   **Body**:
-    ```json
-    {
-        "url": "https://example.com/video/page"
-    }
-    ```
+* **URL**: `/api/parse/batch`
+* **Method**: `POST`
+* **Body**:
+  ```json
+  {
+      "urls": ["http://page1.html", "http://page2.html"],
+      "use_selenium": false
+  }
+  ```
 
-## 📂 项目结构
+## ⚠️ 免责声明
 
-```
-.
-├── app.py              # Flask 后端入口
-├── database.py         # 数据库操作封装 (SQLite)
-├── downloader.py       # 下载管理器 (含队列、并发、Aria2推送)
-├── templates/          # HTML 模板
-│   ├── base.html       # 基础布局
-│   ├── new_task.html   # 新建任务页
-│   ├── parser.html     # 解析页
-│   └── ...
-├── static/             # 前端静态资源
-│   ├── css/            # 样式文件
-│   └── js/             # 逻辑脚本 (api.js, tasks.js 等)
-├── data/               # 数据存储目录 (数据库、密钥)
-├── downloads/          # 视频下载目录
-├── temp/               # 临时文件目录
-└── bin/                # 外部工具目录
-```
-
-## ⚠️ 注意事项
-
-*   **安全性**：请妥善保管管理员密码和 API Key。
-*   **Aria2 推送**：确保配置的“外部访问地址”是 Aria2 服务端可以访问到的地址（例如局域网 IP 或公网域名），否则 Aria2 无法下载推送的直链。
-*   **版权声明**：本项目仅供学习交流使用，请勿用于下载受版权保护的视频内容。
+1. 本项目仅供技术学习和交流使用。
+2. 使用者应自行遵守当地法律法规，请勿使用本项目下载侵犯版权的视频内容。
+3. 开发者不对使用者因使用本项目而产生的任何法律后果承担责任。
 
 ## 📄 License
 

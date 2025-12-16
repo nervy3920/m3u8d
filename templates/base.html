@@ -56,6 +56,12 @@
                     </a>
                 </li>
                 <li>
+                    <a href="/failed" class="{% if active_page == 'failed' %}active{% endif %}">
+                        <i class="bi bi-x-circle-fill"></i>
+                        <span>失败任务</span>
+                    </a>
+                </li>
+                <li>
                     <a href="/all" class="{% if active_page == 'all' %}active{% endif %}">
                         <i class="bi bi-list-ul"></i>
                         <span>所有任务</span>

@@ -64,22 +64,28 @@ const ui = {
             const stats = await api.getStats();
             this.updateStats(stats);
 
-            // 2. 如果在任务列表页面，更新列表
+            // 2. 如果在任务列表页面，更新列表（支持分页 & 失败页）
             if (window.currentPageType && window.renderTaskList) {
                 let tasks = [];
                 if (window.currentPageType === 'downloading') {
+                    // 获取所有下载中和等待中的任务，使用较大 per_page 来尽量一次拉取全部
                     const [downloadingData, pendingData] = await Promise.all([
-                        api.getTasks('downloading'),
-                        api.getTasks('pending')
+                        api.getTasks('downloading', 1, 1000),
+                        api.getTasks('pending', 1, 1000)
                     ]);
-                    tasks = [...downloadingData.tasks, ...pendingData.tasks];
+                    const dTasks = (downloadingData && Array.isArray(downloadingData.tasks)) ? downloadingData.tasks : (downloadingData.tasks || []);
+                    const pTasks = (pendingData && Array.isArray(pendingData.tasks)) ? pendingData.tasks : (pendingData.tasks || []);
+                    tasks = [...dTasks, ...pTasks];
                     tasks.sort((a, b) => b.id - a.id);
                 } else if (window.currentPageType === 'completed') {
-                    const data = await api.getTasks('completed');
-                    tasks = data.tasks;
+                    const data = await api.getTasks('completed', 1, 20);
+                    tasks = data && Array.isArray(data.tasks) ? data.tasks : [];
                 } else if (window.currentPageType === 'all') {
-                    const data = await api.getTasks();
-                    tasks = data.tasks;
+                    const data = await api.getTasks('', 1, 20);
+                    tasks = data && Array.isArray(data.tasks) ? data.tasks : [];
+                } else if (window.currentPageType === 'failed') {
+                    const data = await api.getTasks('failed', 1, 20);
+                    tasks = data && Array.isArray(data.tasks) ? data.tasks : [];
                 }
                 
                 window.renderTaskList(tasks);
@@ -173,6 +179,8 @@ window.showTaskDetail = async (id) => {
         const task = data.task;
 
         const content = document.getElementById('taskDetailContent');
+        const generatedName = task.file_path ? (task.file_path.split(/[\\/]/).pop()) : '-';
+        const submittedName = task.custom_name || '-';
         content.innerHTML = `
             <div class="row mb-4">
                 <div class="col-md-6">
@@ -187,7 +195,9 @@ window.showTaskDetail = async (id) => {
                 <div class="col-md-6">
                     <h6>文件信息</h6>
                     <table class="table table-sm table-borderless">
-                        <tr><td class="text-muted" width="80">大小:</td><td>${formatSize(task.file_size || 0)}</td></tr>
+                        <tr><td class="text-muted" width="80">提交名:</td><td>${submittedName}</td></tr>
+                        <tr><td class="text-muted">生成名:</td><td>${generatedName}</td></tr>
+                        <tr><td class="text-muted">大小:</td><td>${formatSize(task.file_size || 0)}</td></tr>
                         <tr><td class="text-muted">时长:</td><td>${task.duration || '-'}</td></tr>
                         <tr><td class="text-muted">路径:</td><td class="text-break">${task.file_path || '-'}</td></tr>
                     </table>

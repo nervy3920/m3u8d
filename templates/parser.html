@@ -12,10 +12,38 @@
             </h3>
         </div>
         <form id="parserForm">
-            <div class="form-group">
-                <label class="form-label">视频页面链接</label>
-                <input type="url" class="form-control" id="videoPageUrl" placeholder="https://example.com/video/..." required>
-                <small class="text-muted">支持解析网页中的 M3U8 链接，自动提取标题</small>
+            <ul class="nav nav-tabs mb-3" id="parserTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="single-tab" data-bs-toggle="tab" data-bs-target="#single-pane" type="button" role="tab">单条解析</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="batch-tab" data-bs-toggle="tab" data-bs-target="#batch-pane" type="button" role="tab">批量解析</button>
+                </li>
+            </ul>
+
+            <div class="tab-content mb-3" id="parserTabContent">
+                <div class="tab-pane fade show active" id="single-pane" role="tabpanel">
+                    <div class="form-group mb-3">
+                        <label class="form-label">视频页面链接</label>
+                        <input type="url" class="form-control" id="videoPageUrl" placeholder="https://example.com/video/...">
+                        <small class="text-muted">支持解析网页中的 M3U8 链接，自动提取标题</small>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="batch-pane" role="tabpanel">
+                    <div class="form-group mb-3">
+                        <label class="form-label">批量视频链接 (每行一个)</label>
+                        <textarea class="form-control" id="batchVideoUrls" rows="5" placeholder="https://example.com/video/1&#10;https://example.com/video/2"></textarea>
+                        <small class="text-muted">每行输入一个视频页面链接，将依次进行解析</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="useSelenium">
+                <label class="form-check-label" for="useSelenium">
+                    使用 ChromeDriver 抓取 (需在设置中配置路径)
+                </label>
+                <div class="form-text">对于需要 JavaScript 渲染或强反爬的网站，勾选此项可能有效。速度较慢，请耐心等待。</div>
             </div>
             <button type="submit" class="btn-primary-custom">
                 <i class="bi bi-search"></i> 开始解析
@@ -24,31 +52,49 @@
         
         <div id="parseResult" class="mt-4 d-none">
             <div class="alert alert-success">
-                <h5 class="alert-heading"><i class="bi bi-check-circle"></i> 解析成功</h5>
+                <h5 class="alert-heading"><i class="bi bi-check-circle"></i> 解析结果</h5>
                 <hr>
-                <p class="mb-3"><strong>标题:</strong> <span id="parsedTitle"></span></p>
                 
-                <!-- 预览播放器容器 -->
-                <div id="previewPlayer" class="mb-3 d-none" style="width: 100%; height: 400px; background: #000;"></div>
+                <!-- 单条解析结果 -->
+                <div id="singleParseResult" class="d-none">
+                    <p class="mb-3"><strong>标题:</strong> <span id="parsedTitle"></span></p>
+                    
+                    <!-- 预览播放器容器 -->
+                    <div id="previewPlayer" class="mb-3 d-none" style="width: 100%; height: 400px; background: #000;"></div>
 
-                <div id="singleResult" class="d-none">
-                    <p class="mb-2"><strong>M3U8:</strong> <span id="parsedUrl" class="text-break font-monospace small"></span></p>
-                    <div class="mt-3 d-flex gap-2">
-                        <button class="btn btn-primary" onclick="startDownload()">
-                            <i class="bi bi-download"></i> 下载视频
-                        </button>
-                        <button class="btn btn-success" onclick="previewVideo()">
-                            <i class="bi bi-play-fill"></i> 预览播放
-                        </button>
+                    <div id="singleResult" class="d-none">
+                        <p class="mb-2"><strong>M3U8:</strong> <span id="parsedUrl" class="text-break font-monospace small"></span></p>
+                        <div class="mt-3 d-flex gap-2">
+                            <button class="btn btn-primary" onclick="startDownload()">
+                                <i class="bi bi-download"></i> 下载视频
+                            </button>
+                            <button class="btn btn-success" onclick="previewVideo()">
+                                <i class="bi bi-play-fill"></i> 预览播放
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="multiResult" class="d-none">
+                        <p class="mb-2"><strong>检测到多个 M3U8 链接，请选择：</strong></p>
+                        <div class="list-group" id="urlList">
+                            <!-- 动态插入 -->
+                        </div>
                     </div>
                 </div>
 
-                <div id="multiResult" class="d-none">
-                    <p class="mb-2"><strong>检测到多个 M3U8 链接，请选择：</strong></p>
-                    <div class="list-group" id="urlList">
+                <!-- 批量解析结果 -->
+                <div id="batchParseResult" class="d-none">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span>已解析: <span id="batchCount">0</span> 个</span>
+                        <button class="btn btn-sm btn-primary" onclick="batchDownloadAll()">
+                            <i class="bi bi-download"></i> 全部下载
+                        </button>
+                    </div>
+                    <div class="list-group" id="batchResultList">
                         <!-- 动态插入 -->
                     </div>
                 </div>
+
             </div>
         </div>
     </div>
