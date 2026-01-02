@@ -11,6 +11,7 @@ from urllib.parse import quote
 from pathlib import Path
 from datetime import datetime
 from queue import Queue
+from ftp_uploader import FTPUploader
 
 class DownloadManager:
     def __init__(self, db):
@@ -304,10 +305,41 @@ class DownloadManager:
                             aria2_gid = self._push_to_aria2(task_id, output_file)
                     except Exception:
                         aria2_gid = None
-                        
+
+                    # FTP 上传
+                    ftp_uploaded = False
+                    try:
+                        if self.db.get_setting('ftp_enabled') == 'true':
+                            ftp_uploaded = self._upload_to_ftp(task_id, output_file)
+                    except Exception:
+                        ftp_uploaded = False
+
                     # 删除源文件
                     try:
-                        if self.db.get_setting('delete_after_download') == 'true':
+                        # FTP 上传后删除
+                        if ftp_uploaded and self.db.get_setting('ftp_delete_after_upload') == 'true':
+                            try:
+                                os.remove(output_file)
+                                try:
+                                    self.db.add_log(task_id, "FTP 上传完成，源文件已删除")
+                                except Exception:
+                                    pass
+                                # 更新 file_path 为空
+                                try:
+                                    task = self.db.get_task(task_id)
+                                    if task and not task.get('custom_name'):
+                                        filename = os.path.basename(output_file)
+                                        self.db.update_task(task_id, custom_name=filename)
+                                    self.db.update_task(task_id, file_path="")
+                                except Exception:
+                                    pass
+                            except Exception as e:
+                                try:
+                                    self.db.add_log(task_id, f"删除源文件失败: {e}")
+                                except Exception:
+                                    pass
+                        # Aria2 推送后删除
+                        elif self.db.get_setting('delete_after_download') == 'true':
                             if aria2_gid:
                                 # 如果推送到 Aria2，启动监控线程等待 Aria2 下载完成再删除
                                 threading.Thread(
@@ -329,12 +361,10 @@ class DownloadManager:
                                         pass
                                     # 更新 file_path 为空，防止前端尝试播放
                                     try:
-                                        # 在清空 file_path 之前，确保 custom_name 有值
                                         task = self.db.get_task(task_id)
                                         if task and not task.get('custom_name'):
                                             filename = os.path.basename(output_file)
                                             self.db.update_task(task_id, custom_name=filename)
-                                            
                                         self.db.update_task(task_id, file_path="")
                                     except Exception:
                                         pass
@@ -711,3 +741,67 @@ class DownloadManager:
                         os.remove(full_path)
         except Exception:
             pass
+
+    def _upload_to_ftp(self, task_id, file_path):
+        """上传文件到 FTP 服务器"""
+        try:
+            # 获取 FTP 配置
+            ftp_host = self.db.get_setting('ftp_host', '')
+            ftp_port_str = self.db.get_setting('ftp_port', '21')
+            ftp_port = int(ftp_port_str) if ftp_port_str and ftp_port_str.strip() else 21
+            ftp_username = self.db.get_setting('ftp_username', '')
+            ftp_password = self.db.get_setting('ftp_password', '')
+            ftp_remote_dir = self.db.get_setting('ftp_remote_dir', '')
+            ftp_passive = self.db.get_setting('ftp_passive_mode', 'true') == 'true'
+
+            if not ftp_host or not ftp_username:
+                self.db.add_log(task_id, "FTP 配置不完整，跳过上传")
+                return False
+
+            self.db.add_log(task_id, f"开始上传到 FTP: {ftp_host}")
+
+            # 创建 FTP 上传器
+            uploader = FTPUploader(
+                host=ftp_host,
+                port=ftp_port,
+                username=ftp_username,
+                password=ftp_password,
+                remote_dir=ftp_remote_dir,
+                use_passive=ftp_passive
+            )
+
+            # 连接 FTP
+            success, msg = uploader.connect()
+            if not success:
+                self.db.add_log(task_id, f"FTP 连接失败: {msg}")
+                return False
+
+            self.db.add_log(task_id, "FTP 连接成功，开始上传文件...")
+
+            # 上传文件，带进度回调
+            def progress_callback(uploaded, total):
+                try:
+                    progress = (uploaded / total) * 100 if total > 0 else 0
+                    if int(progress) % 10 == 0:  # 每 10% 记录一次
+                        self.db.add_log(task_id, f"FTP 上传进度: {progress:.1f}%")
+                except Exception:
+                    pass
+
+            filename = os.path.basename(file_path)
+            success, msg = uploader.upload_file(file_path, filename, progress_callback)
+
+            uploader.disconnect()
+
+            if success:
+                self.db.add_log(task_id, f"FTP 上传成功: {filename}")
+                return True
+            else:
+                self.db.add_log(task_id, f"FTP 上传失败: {msg}")
+                return False
+
+        except Exception as e:
+            try:
+                self.db.add_log(task_id, f"FTP 上传异常: {str(e)}")
+            except Exception:
+                pass
+            return False

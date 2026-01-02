@@ -85,6 +85,47 @@
                 </div>
             </div>
 
+            <h5 class="mb-3 mt-4">FTP 配置</h5>
+            <div class="mb-3 form-check">
+                <input type="checkbox" class="form-check-input" id="ftpEnabled" name="ftp_enabled">
+                <label class="form-check-label" for="ftpEnabled">启用 FTP 自动上传</label>
+            </div>
+            <div id="ftpConfig" class="d-none">
+                <div class="row mb-3">
+                    <div class="col-md-8">
+                        <label class="form-label">FTP 服务器地址</label>
+                        <input type="text" class="form-control" name="ftp_host" placeholder="ftp.example.com">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">FTP 端口</label>
+                        <input type="number" class="form-control" name="ftp_port" placeholder="21">
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">用户名</label>
+                        <input type="text" class="form-control" name="ftp_username">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">密码</label>
+                        <input type="password" class="form-control" name="ftp_password">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">远程目录 (可选)</label>
+                    <input type="text" class="form-control" name="ftp_remote_dir" placeholder="/videos">
+                    <div class="form-text">指定 FTP 服务器上的目标目录，留空则上传到根目录</div>
+                </div>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="ftpPassiveMode" name="ftp_passive_mode">
+                    <label class="form-check-label" for="ftpPassiveMode">使用被动模式 (推荐)</label>
+                </div>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="ftpDeleteAfterUpload" name="ftp_delete_after_upload">
+                    <label class="form-check-label" for="ftpDeleteAfterUpload">上传完成后删除本地文件</label>
+                </div>
+            </div>
+
             <h5 class="mb-3 mt-4">API 访问</h5>
             <div class="mb-3 form-check">
                 <input type="checkbox" class="form-check-input" id="apiEnabled" name="api_enabled">

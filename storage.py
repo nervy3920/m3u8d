@@ -46,7 +46,15 @@ DEFAULT_SETTINGS = {
     'delete_after_download': 'false',
     'public_host': 'http://localhost:5000',
     'api_enabled': 'false',
-    'api_key': ''
+    'api_key': '',
+    'ftp_enabled': 'false',
+    'ftp_host': '',
+    'ftp_port': '21',
+    'ftp_username': '',
+    'ftp_password': '',
+    'ftp_remote_dir': '',
+    'ftp_passive_mode': 'true',
+    'ftp_delete_after_upload': 'false'
 }
 
 

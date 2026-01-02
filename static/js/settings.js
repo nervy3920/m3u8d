@@ -12,6 +12,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // FTP 开关联动
+    const ftpCheck = document.getElementById('ftpEnabled');
+    const ftpConfig = document.getElementById('ftpConfig');
+    if (ftpCheck) {
+        ftpCheck.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                ftpConfig.classList.remove('d-none');
+            } else {
+                ftpConfig.classList.add('d-none');
+            }
+        });
+    }
+
     // API 开关联动
     const apiCheck = document.getElementById('apiEnabled');
     const apiConfig = document.getElementById('apiConfig');
@@ -71,10 +84,14 @@ document.addEventListener('DOMContentLoaded', () => {
             settings['delete_after_download'] = formData.get('delete_after_download') ? 'true' : 'false';
             settings['aria2_enabled'] = formData.get('aria2_enabled') ? 'true' : 'false';
             settings['api_enabled'] = formData.get('api_enabled') ? 'true' : 'false';
+            settings['ftp_enabled'] = formData.get('ftp_enabled') ? 'true' : 'false';
+            settings['ftp_passive_mode'] = formData.get('ftp_passive_mode') ? 'true' : 'false';
+            settings['ftp_delete_after_upload'] = formData.get('ftp_delete_after_upload') ? 'true' : 'false';
             
             // 处理其他字段
+            const checkboxFields = ['delete_after_download', 'aria2_enabled', 'api_enabled', 'ftp_enabled', 'ftp_passive_mode', 'ftp_delete_after_upload'];
             for (let [key, value] of formData.entries()) {
-                if (key !== 'delete_after_download' && key !== 'aria2_enabled' && key !== 'api_enabled') {
+                if (!checkboxFields.includes(key)) {
                     settings[key] = value;
                 }
             }
